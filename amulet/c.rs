@@ -97,6 +97,24 @@ type MEVENT = {
     bstate: mmask_t,
 };
 
+const NCURSES_ATTR_SHIFT: c_int = 8;
+
+const A_NORMAL: c_int = 0;
+//#define A_ATTRIBUTES	NCURSES_BITS(~(1U - 1U),0)
+//#define A_CHARTEXT	(NCURSES_BITS(1U,0) - 1U)
+//#define A_COLOR		NCURSES_BITS(((1U) << 8) - 1U,0)
+const A_STANDOUT:   c_int = 1 << (NCURSES_ATTR_SHIFT + 8);
+const A_UNDERLINE:  c_int = 1 << (NCURSES_ATTR_SHIFT + 9);
+const A_REVERSE:    c_int = 1 << (NCURSES_ATTR_SHIFT + 10);
+const A_BLINK:      c_int = 1 << (NCURSES_ATTR_SHIFT + 11);
+const A_DIM:        c_int = 1 << (NCURSES_ATTR_SHIFT + 12);
+const A_BOLD:       c_int = 1 << (NCURSES_ATTR_SHIFT + 13);
+
+const KEY_F0: c_int = 0410;
+fn KEY_F(n: c_int) -> c_int {
+    ret KEY_F0 + n;
+}
+
 #[link_name="ncurses"]
 extern mod bindgen {
 

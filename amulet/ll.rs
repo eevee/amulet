@@ -1,5 +1,7 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
+import libc::c_int;
+
 import c;
 
 class Window {
@@ -7,9 +9,13 @@ class Window {
 
     new(c_window: *c::WINDOW) {
         self.c_window = c_window;
+
+        // Always enable keypad (function keys, arrow keys, etc.)
+        // TODO what are multiple screens?
+        c::bindgen::keypad(c_window, true);
     }
 
-    fn print(msg: str) { 
+    fn print(msg: str) {
         // TODO return value
         // TODO this is variadic; string template exploits abound, should use %s really
         do str::as_c_str(msg) |bytes| {
@@ -22,10 +28,21 @@ class Window {
         c::bindgen::wrefresh(self.c_window);
     }
 
-    fn getch() {
+    fn getch() -> int {
         // TODO return value, kind of important here
         // TODO this name sucks
-        c::bindgen::wgetch(self.c_window);
+        ret c::bindgen::wgetch(self.c_window) as int;
+    }
+
+    fn attron(arg: c_int) {
+        // TODO return value
+        // TODO this is a fucking stupid way to do this
+        c::bindgen::wattron(self.c_window, arg as c_int);
+    }
+    fn attroff(arg: c_int) {
+        // TODO return value
+        // TODO this is a fucking stupid way to do this
+        c::bindgen::wattroff(self.c_window, arg as c_int);
     }
 
     fn end() {
