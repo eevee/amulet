@@ -15,6 +15,21 @@ class Window {
         c::bindgen::keypad(c_window, true);
     }
 
+    // Properties
+
+    /** Returns the size of the window as (rows, columns). */
+    fn size() -> (uint, uint) {
+        ret (c::bindgen::getmaxy(self.c_window) as uint,
+            c::bindgen::getmaxx(self.c_window) as uint);
+    }
+
+    // Methods
+
+    fn move(row: uint, col: uint) {
+        // TODO return value
+        c::bindgen::wmove(self.c_window, row as c_int, col as c_int);
+    }
+
     fn print(msg: str) {
         // TODO return value
         // TODO this is variadic; string template exploits abound, should use %s really
