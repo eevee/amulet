@@ -1,6 +1,6 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-import libc::c_int;
+import libc::{c_char,c_int,c_void,size_t};
 
 import c;
 
@@ -15,7 +15,7 @@ class Window {
         c::bindgen::keypad(c_window, true);
     }
 
-    // Properties
+    ////// Properties
 
     /** Returns the size of the window as (rows, columns). */
     fn size() -> (uint, uint) {
@@ -23,7 +23,7 @@ class Window {
             c::bindgen::getmaxx(self.c_window) as uint);
     }
 
-    // Methods
+    ////// Methods
 
     fn move(row: uint, col: uint) {
         // TODO return value
@@ -43,11 +43,28 @@ class Window {
         c::bindgen::wrefresh(self.c_window);
     }
 
+    // Input
+
     fn getch() -> int {
         // TODO return value, kind of important here
         // TODO this name sucks
         ret c::bindgen::wgetch(self.c_window) as int;
     }
+
+    fn readln() -> str unsafe {
+        // TODO return value
+        // TODO what should maximum buffer length be?
+        const buflen: uint = 80;
+        let buf = libc::malloc(buflen as size_t) as *c_char;
+        c::bindgen::wgetnstr(self.c_window, buf, buflen as c_int);
+
+        let out = str::unsafe::from_c_str_len(buf, buflen);
+        libc::free(buf as *c_void);
+
+        ret out;
+    }
+
+    // Attributes
 
     fn attron(arg: c_int) {
         // TODO return value
