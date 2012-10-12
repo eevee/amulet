@@ -4,14 +4,14 @@
  * http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/init.html
  */
 
-use amulet;
+extern mod amulet;
 
-import libc::c_int;
+use libc::c_int;
 
-fn main(_args: ~[str]) {
+fn main() {
     let window = amulet::ll::init_screen();
-    amulet::c::bindgen::raw();
-    amulet::c::bindgen::noecho();
+    amulet::c::raw();
+    amulet::c::noecho();
 
     window.print("Type any character to see it in bold\n");
 

@@ -4,9 +4,9 @@
  * http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/helloworld.html
  */
 
-use amulet;
+extern mod amulet;
 
-fn main(_args: ~[str]) {
+fn main() {
     let window = amulet::ll::init_screen();
     window.print("Hello World !!!");
     window.refresh();

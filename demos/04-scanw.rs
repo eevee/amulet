@@ -4,26 +4,26 @@
  * http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/scanw.html
  */
 
-use amulet;
+extern mod amulet;
 
-import libc::c_int;
+use libc::c_int;
 
-fn main(_args: ~[str]) {
+fn main() {
     let mesg = "Enter a string: ";
 
     let window = amulet::ll::init_screen();
     let (rows, cols) = window.size();
 
-    let buf: str;
+    let buf: ~str;
 
-    window.move(rows / 2, (cols - str::len(mesg)) / 2);
+    window.mv(rows / 2, (cols - str::len(mesg)) / 2);
     window.print(mesg);
 
     buf = window.readln();
 
     // TODO bindgen doesn't give me access to LINES
     //mvprintw(LINES - 2, 0, "You Entered: %s", str);
-    window.move(rows - 2, 0);
+    window.mv(rows - 2, 0);
     window.print(#fmt("You entered: %s", buf));
 
     window.getch();

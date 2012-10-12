@@ -2,5 +2,9 @@
 #[comment = "Rust ncurses and TUI library"];
 #[crate_type = "lib"];
 
-mod c;
-mod ll;
+#[legacy_exports]
+pub mod c;
+// TODO unraw
+// TODO unlegacy
+
+pub mod ll;
