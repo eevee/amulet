@@ -20,8 +20,16 @@ impl Window {
 
     /** Returns the size of the window as (rows, columns). */
     fn size() -> (uint, uint) {
-        return (c::getmaxy(self.c_window) as uint,
+        return (
+            c::getmaxy(self.c_window) as uint,
             c::getmaxx(self.c_window) as uint);
+    }
+
+    /** Returns the current cursor position as (row, column). */
+    fn position() -> (uint, uint) {
+        return (
+            c::getcury(self.c_window) as uint,
+            c::getcurx(self.c_window) as uint);
     }
 
     ////// Methods
@@ -42,6 +50,11 @@ impl Window {
     fn refresh() {
         // TODO return value
         c::wrefresh(self.c_window);
+    }
+
+    fn clear() {
+        // TODO return value
+        c::wclear(self.c_window);
     }
 
     // Input
