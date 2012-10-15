@@ -1,2 +1,6 @@
 .*.swp
 *.so
+
+# Ignore the binaries in `demos`
+demos/*
+!demos/*.rs
