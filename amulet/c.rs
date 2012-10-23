@@ -5,6 +5,7 @@ use libc::*;
 // This is not necessarily true, but it's *probably* true.  Defined in wchar.h
 // but missing from Rust's libc definitions.
 type wint_t = c_uint;
+const WEOF: c_uint = 0xffffffff;
 
 type chtype = c_uint;
 type mmask_t = c_ulong;

@@ -4,10 +4,17 @@ use libc::{c_char,c_int,c_void,size_t};
 
 use c;
 
+extern {
+    fn setlocale(category: c_int, locale: *c_char) -> *c_char;
+}
+
 pub struct Window {
     c_window: *c::WINDOW,
 }
 pub fn Window(c_window: *c::WINDOW) -> Window {
+    // Something, something.  TODO explain
+    c::intrflush(c_window, 0);
+
     // Always enable keypad (function keys, arrow keys, etc.)
     // TODO what are multiple screens?
     c::keypad(c_window, 1);
@@ -67,6 +74,8 @@ impl Window {
             return ch as char;
         }
         else if res == c::KEY_CODE_YES {
+            // TODO this is super wrong; the keycodes overlap with legit
+            // characters
             return ch as char;
         }
         else if res == c::ERR {
@@ -75,6 +84,7 @@ impl Window {
         else {
             fail;
         }
+        // TODO what if you get WEOF...?
     }
 
     fn readln() -> ~str unsafe {
@@ -88,9 +98,7 @@ impl Window {
             fail;
         }
 
-        let vec = do vec::from_buf(buf, buflen).map |ch| {
-            *ch as char
-        };
+        let vec = do vec::from_buf(buf, buflen).map |ch| { *ch as char };
         libc::free(buf as *c_void);
 
         return str::from_chars(vec);
@@ -117,12 +125,26 @@ impl Window {
 }
 
 pub fn init_screen() -> Window {
+    // TODO not sure all this stuff should be initialized /here/ really
+    // TODO perhaps ensure this is only called once?  or make it a context
+    // manager ish thing?
+
+    // TODO this is not very cross-platform, but LC_ALL is a macro  :|
+    // setlocale(LC_ALL, "") reads the locale from the environment
+    let empty_string: c_char = 0;
+    setlocale(6, ptr::addr_of(&empty_string));
+
     let c_window = c::initscr();
 
     if c_window == ptr::null() {
         // Should only fail due to memory pressure
         fail;
     }
+
+    // TODO these are also global, yikes
+    c::cbreak();
+    //c::noecho();
+    c::nonl();
 
     return Window(c_window);
 }
