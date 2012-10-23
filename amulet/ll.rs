@@ -59,23 +59,41 @@ impl Window {
 
     // Input
 
-    fn getch() -> int {
-        // TODO return value, kind of important here
+    fn getch() -> char {
         // TODO this name sucks
-        return c::wgetch(self.c_window) as int;
+        let ch: c::wint_t = 0;
+        let res = c::wget_wch(self.c_window, ptr::addr_of(&ch));
+        if res == c::OK {
+            return ch as char;
+        }
+        else if res == c::KEY_CODE_YES {
+            return ch as char;
+        }
+        else if res == c::ERR {
+            fail;
+        }
+        else {
+            fail;
+        }
     }
 
     fn readln() -> ~str unsafe {
-        // TODO return value
         // TODO what should maximum buffer length be?
         const buflen: uint = 80;
-        let buf = libc::malloc(buflen as size_t) as *c_char;
-        c::wgetnstr(self.c_window, buf, buflen as c_int);
+        let buf = libc::malloc(buflen * sys::size_of::<c::wint_t>() as size_t)
+            as *c::wint_t;
+        let res = c::wgetn_wstr(self.c_window, buf, buflen as c_int);
 
-        let out = str::raw::from_c_str_len(buf, buflen);
+        if res != c::OK {
+            fail;
+        }
+
+        let vec = do vec::from_buf(buf, buflen).map |ch| {
+            *ch as char
+        };
         libc::free(buf as *c_void);
 
-        return out;
+        return str::from_chars(vec);
     }
 
     // Attributes

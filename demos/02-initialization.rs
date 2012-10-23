@@ -15,14 +15,16 @@ fn main() {
 
     window.print("Type any character to see it in bold\n");
 
-    let ch: int = window.getch();
-    if ch == amulet::c::KEY_F(1 as c_int) as int {
+    let ch = window.getch();
+    // TODO this ain't quite right, yo.  function keys are distinct from
+    // characters
+    if ch == amulet::c::KEY_F(1 as c_int) as char {
         window.print("F1 key pressed");
     }
     else {
         window.print("The pressed key is ");
         window.attron(amulet::c::A_BOLD);
-        window.print(#fmt("%c", ch as char));
+        window.print(#fmt("%c", ch));
         window.attroff(amulet::c::A_BOLD);
     }
 
