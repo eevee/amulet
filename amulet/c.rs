@@ -525,6 +525,15 @@ extern  {
 ////////////////////////////////////////////////////////////////////////////////
 // Manually-ported preprocessor stuff
 
+const COLOR_BLACK:      c_short = 0;
+const COLOR_RED:        c_short = 1;
+const COLOR_GREEN:      c_short = 2;
+const COLOR_YELLOW:     c_short = 3;
+const COLOR_BLUE:       c_short = 4;
+const COLOR_MAGENTA:    c_short = 5;
+const COLOR_CYAN:       c_short = 6;
+const COLOR_WHITE:      c_short = 7;
+
 const NCURSES_ATTR_SHIFT: c_int = 8;
 const A_NORMAL: c_int = 0;
 //#define A_ATTRIBUTES NCURSES_BITS(~(1U - 1U),0)
@@ -548,5 +557,5 @@ fn KEY_F(n: c_int) -> c_int {
 const ERR: c_int = -1;
 const OK: c_int = 0;
 
-const KEY_CODE_YES: c_int = 0400;
+const KEY_CODE_YES: c_int = 256;
 

@@ -1,6 +1,6 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-use libc::{c_char,c_int,c_void,size_t};
+use libc::{c_char,c_int,c_short,c_void,size_t};
 
 use c;
 
@@ -82,6 +82,7 @@ impl Window {
             fail;
         }
         else {
+            // TODO wat
             fail;
         }
         // TODO what if you get WEOF...?
@@ -117,8 +118,16 @@ impl Window {
         c::wattroff(self.c_window, arg as c_int);
     }
 
+    fn restyle(num_chars: int, attrflags: int, color_index: int) {
+        // NOTE: chgat() returns a c_int, but documentation indicates the value
+        // is meaningless.
+        c::chgat(num_chars as c_int, attrflags as c::attr_t, color_index as c_short, ptr::null());
+    }
+
+
     fn end() {
         // TODO this feels too manual; i think this should be a bit smarter and use drop() to end curses mode.
+        // TODO or, even better, get this and the init stuff out of this class and into a "context manager"
         // TODO return value, though fuck if i know how this could ever fail
         c::endwin();
     }
@@ -135,11 +144,17 @@ pub fn init_screen() -> Window {
     setlocale(6, ptr::addr_of(&empty_string));
 
     let c_window = c::initscr();
-
     if c_window == ptr::null() {
         // Should only fail due to memory pressure
         fail;
     }
+
+    // TODO return value
+    c::start_color();
+    // TODO return value
+    // TODO this is an ncurses extension...  but we're linking with ncurses,
+    // so, eh
+    c::use_default_colors();
 
     // TODO these are also global, yikes
     c::cbreak();
@@ -147,4 +162,11 @@ pub fn init_screen() -> Window {
     c::nonl();
 
     return Window(c_window);
+}
+
+// Attribute definition
+
+pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
+    // TODO return value
+    c::init_pair(color_index as c_short, fg, bg);
 }
