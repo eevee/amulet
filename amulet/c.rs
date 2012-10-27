@@ -546,7 +546,12 @@ const A_BLINK:      c_int = 1 << (NCURSES_ATTR_SHIFT + 11);
 const A_DIM:        c_int = 1 << (NCURSES_ATTR_SHIFT + 12);
 const A_BOLD:       c_int = 1 << (NCURSES_ATTR_SHIFT + 13);
 
-const KEY_F0: c_int = 0410;
+const KEY_DOWN:     c_int = 258;
+const KEY_UP:       c_int = 259;
+const KEY_LEFT:     c_int = 260;
+const KEY_RIGHT:    c_int = 261;
+
+const KEY_F0:       c_int = 264;
 
 fn KEY_F(n: c_int) -> c_int {
     return KEY_F0 + n;

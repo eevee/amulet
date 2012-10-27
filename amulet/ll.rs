@@ -125,11 +125,40 @@ impl Window {
     }
 
 
+    // Drawing
+
+    fn set_box(vert: char, horiz: char) {
+        // TODO return value
+        c::box_set(self.c_window, ptr::addr_of(&__char_to_cchar_t(vert)), ptr::addr_of(&__char_to_cchar_t(horiz)));
+    }
+
+    fn set_border(l: char, r: char, t: char, b: char, tl: char, tr: char, bl: char, br: char) {
+        // TODO return value
+        c::wborder_set(self.c_window,
+            ptr::addr_of(&__char_to_cchar_t(l)),
+            ptr::addr_of(&__char_to_cchar_t(r)),
+            ptr::addr_of(&__char_to_cchar_t(t)),
+            ptr::addr_of(&__char_to_cchar_t(b)),
+            ptr::addr_of(&__char_to_cchar_t(tl)),
+            ptr::addr_of(&__char_to_cchar_t(tr)),
+            ptr::addr_of(&__char_to_cchar_t(bl)),
+            ptr::addr_of(&__char_to_cchar_t(br))
+        );
+    }
+
+
+
+
     fn end() {
         // TODO this feels too manual; i think this should be a bit smarter and use drop() to end curses mode.
         // TODO or, even better, get this and the init stuff out of this class and into a "context manager"
         // TODO return value, though fuck if i know how this could ever fail
         c::endwin();
+    }
+
+    fn del() {
+        // TODO yeah this is gross
+        c::delwin(self.c_window);
     }
 }
 
@@ -164,9 +193,36 @@ pub fn init_screen() -> Window {
     return Window(c_window);
 }
 
+
+/** Returns the screen size as (rows, columns). */
+pub fn screen_size() -> (uint, uint) {
+    return (c::LINES as uint, c::COLS as uint);
+}
+
 // Attribute definition
 
 pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
     // TODO return value
     c::init_pair(color_index as c_short, fg, bg);
+}
+
+pub fn new_window(height: uint, width: uint, starty: uint, startx: uint) -> Window {
+    let c_window = c::newwin(height as c_int, width as c_int, starty as c_int, startx as c_int);
+
+    if c_window == ptr::null() {
+        // TODO?
+        fail;
+    }
+
+    return Window(c_window);
+}
+
+
+
+
+fn __char_to_cchar_t(ch: char) -> c::cchar_t {
+    return c::cchar_t{
+        attr: c::A_NORMAL as c::attr_t,
+        chars: [ch as c::wchar_t, 0, 0, 0, 0],
+    };
 }
