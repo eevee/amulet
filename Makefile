@@ -1,8 +1,9 @@
 .PHONY: all
 all: libamulet
 
+# TODO this is built every time, but the output filename varies...
 .PHONY: libamulet
-libamulet:
+libamulet: amulet/amulet.rc $(wildcard amulet/*.rs)
 	rustc amulet/amulet.rc
 
 
@@ -13,7 +14,7 @@ DEMO_TARGETS := $(DEMO_SOURCES:.rs=)
 demos: $(DEMO_TARGETS)
 
 .SECONDEXPANSION:
-$(DEMO_TARGETS): libamulet $$@.rs
+$(DEMO_TARGETS): $$@.rs | libamulet
 	rustc -L amulet $@.rs
 
 
