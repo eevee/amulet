@@ -18,7 +18,6 @@ fn main() {
     // Third: Color index to use
     window.restyle(-1, amulet::c::A_BLINK as int, 1);
 
-    window.refresh();
+    window.repaint();
     window.getch();
-    window.end();
 }

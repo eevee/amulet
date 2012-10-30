@@ -25,7 +25,6 @@ fn main() {
     window.print(#fmt("This screen has %u rows and %u columns\n", rows, cols));
 
     window.print("Try resizing your window (if possible) and then run this program again");
-    window.refresh();
+    window.repaint();
     window.getch();
-    window.end();
 }

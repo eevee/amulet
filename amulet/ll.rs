@@ -8,10 +8,21 @@ extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
 }
 
-pub struct Window {
+struct Window {
     c_window: *c::WINDOW,
+
+    drop {
+        // TODO with multiple windows, need a Rust-level reference to the parent
+
+        // TODO return value, though fuck if i know how this could ever fail
+        c::endwin();
+
+        // TODO do i need to do this with stdscr?  does it hurt?
+        c::delwin(self.c_window);
+    }
 }
-pub fn Window(c_window: *c::WINDOW) -> Window {
+// TODO this probably doesn't need to be here quite like this
+fn init_window(c_window: *c::WINDOW) -> @Window {
     // Something, something.  TODO explain
     c::intrflush(c_window, 0);
 
@@ -19,7 +30,7 @@ pub fn Window(c_window: *c::WINDOW) -> Window {
     // TODO what are multiple screens?
     c::keypad(c_window, 1);
 
-    return Window{ c_window: c_window };
+    return @Window{ c_window: c_window };
 }
 
 impl Window {
@@ -54,7 +65,7 @@ impl Window {
         }
     }
 
-    fn refresh() {
+    fn repaint() {
         // TODO return value
         c::wrefresh(self.c_window);
     }
@@ -90,6 +101,7 @@ impl Window {
 
     fn readln() -> ~str unsafe {
         // TODO what should maximum buffer length be?
+        // TODO or perhaps i should reimplement the getnstr function myself with getch.
         const buflen: uint = 80;
         let buf = libc::malloc(buflen * sys::size_of::<c::wint_t>() as size_t)
             as *c::wint_t;
@@ -107,17 +119,15 @@ impl Window {
 
     // Attributes
 
-    fn attron(arg: c_int) {
-        // TODO return value
-        // TODO this is a fucking stupid way to do this
-        c::wattron(self.c_window, arg as c_int);
+    fn attrprint(s: &str, style: Style) {
+        // TODO this leaves state behind...  set back to normal after?
+        // TODO should probably interact nicely with background color
+        c::wattrset(self.c_window, style.c_value);
+        // TODO variadic
+        do str::as_c_str(s) |bytes| {
+            c::wprintw(self.c_window, bytes);
+        }
     }
-    fn attroff(arg: c_int) {
-        // TODO return value
-        // TODO this is a fucking stupid way to do this
-        c::wattroff(self.c_window, arg as c_int);
-    }
-
     fn restyle(num_chars: int, attrflags: int, color_index: int) {
         // NOTE: chgat() returns a c_int, but documentation indicates the value
         // is meaningless.
@@ -145,24 +155,9 @@ impl Window {
             ptr::addr_of(&__char_to_cchar_t(br))
         );
     }
-
-
-
-
-    fn end() {
-        // TODO this feels too manual; i think this should be a bit smarter and use drop() to end curses mode.
-        // TODO or, even better, get this and the init stuff out of this class and into a "context manager"
-        // TODO return value, though fuck if i know how this could ever fail
-        c::endwin();
-    }
-
-    fn del() {
-        // TODO yeah this is gross
-        c::delwin(self.c_window);
-    }
 }
 
-pub fn init_screen() -> Window {
+pub fn init_screen() -> @Window {
     // TODO not sure all this stuff should be initialized /here/ really
     // TODO perhaps ensure this is only called once?  or make it a context
     // manager ish thing?
@@ -190,9 +185,32 @@ pub fn init_screen() -> Window {
     //c::noecho();
     c::nonl();
 
-    return Window(c_window);
+    return init_window(c_window);
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Attributes
+
+pub struct Style {
+    c_value: c_int,
+}
+pub fn Style() -> Style {
+    return Style{ c_value: 0 };
+}
+impl Style {
+    fn bold() -> Style {
+        return Style{ c_value: self.c_value | c::A_BOLD };
+    }
+
+    fn underline() -> Style {
+        return Style{ c_value: self.c_value | c::A_UNDERLINE };
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Misc that should probably go away
 
 /** Returns the screen size as (rows, columns). */
 pub fn screen_size() -> (uint, uint) {
@@ -206,7 +224,7 @@ pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
     c::init_pair(color_index as c_short, fg, bg);
 }
 
-pub fn new_window(height: uint, width: uint, starty: uint, startx: uint) -> Window {
+pub fn new_window(height: uint, width: uint, starty: uint, startx: uint) -> @Window {
     let c_window = c::newwin(height as c_int, width as c_int, starty as c_int, startx as c_int);
 
     if c_window == ptr::null() {
@@ -214,7 +232,7 @@ pub fn new_window(height: uint, width: uint, starty: uint, startx: uint) -> Wind
         fail;
     }
 
-    return Window(c_window);
+    return init_window(c_window);
 }
 
 

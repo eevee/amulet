@@ -9,7 +9,6 @@ extern mod amulet;
 fn main() {
     let window = amulet::ll::init_screen();
     window.print("Hello World !!!");
-    window.refresh();
+    window.repaint();
     window.getch();
-    window.end();
 }

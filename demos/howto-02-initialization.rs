@@ -9,6 +9,8 @@ extern mod amulet;
 use libc::c_int;
 
 fn main() {
+    let bold = amulet::ll::Style().bold();
+
     let window = amulet::ll::init_screen();
     amulet::c::raw();
     amulet::c::noecho();
@@ -23,12 +25,9 @@ fn main() {
     }
     else {
         window.print("The pressed key is ");
-        window.attron(amulet::c::A_BOLD);
-        window.print(#fmt("%c", ch));
-        window.attroff(amulet::c::A_BOLD);
+        window.attrprint(#fmt("%c", ch), bold);
     }
 
-    window.refresh();
+    window.repaint();
     window.getch();
-    window.end();
 }

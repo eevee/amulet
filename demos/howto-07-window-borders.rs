@@ -19,7 +19,7 @@ fn main() {
     let mut startx = (columns - width) / 2;
 
     window.print("Press F1 to exit");
-    window.refresh();
+    window.repaint();
 
     let mut my_win = create_newwin(height, width, starty, startx);
 
@@ -49,28 +49,24 @@ fn main() {
             my_win = create_newwin(height, width, starty, startx);
         }
     }
-
-    window.end();
 }
 
-fn create_newwin(height: uint, width: uint, starty: uint, startx: uint) -> amulet::ll::Window {
+fn create_newwin(height: uint, width: uint, starty: uint, startx: uint) -> @amulet::ll::Window {
     let local_win = amulet::ll::new_window(height, width, starty, startx);
     // 0,0 gives default chars for the vertical and horizontal lines
     local_win.set_box(0 as char, 0 as char);
 
     // Show that box
-    local_win.refresh();
+    local_win.repaint();
 
     return local_win;
 }
 
-fn destroy_win(local_win: amulet::ll::Window) {
+fn destroy_win(local_win: &amulet::ll::Window) {
     // 'box' won't erase the window; it'll leave the corners behind.
 
     // border's params are L, R, T, B, TL, TR, BL, BR
     local_win.set_border(' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
 
-    local_win.refresh();
-
-    local_win.del();
+    local_win.repaint();
 }

@@ -8,7 +8,7 @@ extern mod amulet;
 
 use libc::c_int;
 
-/* pager functionality by Joseph Spainhour" <spainhou@bellsouth.net> */
+/* pager functionality by Joseph Spainhou <spainhou@bellsouth.net> */
 
 fn main() {
     let mut ch;
@@ -17,8 +17,7 @@ fn main() {
     let args = os::args();
     if args.len() != 2 {
         io::println(fmt!("Usage: %s <a C filename>", args[0]));
-        os::set_exit_status(1);
-        return;
+        libc::exit(1);
     }
 
     let fh;
@@ -26,8 +25,7 @@ fn main() {
         result::Ok(res) => { fh = res; }
         result::Err(msg) => {
             io::println(msg);
-            os::set_exit_status(1);
-            return;
+            libc::exit(1);
         }
     }
 
@@ -35,6 +33,10 @@ fn main() {
 
     let window = amulet::ll::init_screen();
     let (rows, _cols) = window.size();
+
+    let plain = amulet::ll::Style();
+    let bold = plain.bold();
+    let mut cur_style = plain;
 
     while ! fh.eof() {
         ch = fh.read_byte();
@@ -48,26 +50,22 @@ fn main() {
         }
 
         if prev as char == '/' && ch as char == '*' {
-            window.attron(amulet::c::A_BOLD);
             //window.print(#fmt("%c", ch as char));
+            cur_style = bold;
 
             window.mv(row, col - 1);
-            window.print(fmt!("%c%c", prev as char, ch as char));
+            window.attrprint(fmt!("%c%c", prev as char, ch as char), cur_style);
         }
         else {
-            window.print(fmt!("%c", ch as char));
+            window.attrprint(fmt!("%c", ch as char), cur_style);
         }
 
-        window.refresh();
+        window.repaint();
 
         if prev as char == '*' && ch as char == '/' {
-            window.attroff(amulet::c::A_BOLD);
+            cur_style = plain;
         }
 
         prev = ch;
     }
-
-    window.end();
-
-    // close fh?
 }

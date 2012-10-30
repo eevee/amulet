@@ -27,5 +27,4 @@ fn main() {
     window.print(#fmt("You entered: %s", buf));
 
     window.getch();
-    window.end();
 }
