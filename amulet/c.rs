@@ -549,7 +549,7 @@ const NCURSES_ATTR_SHIFT: c_int = 8;
 const A_NORMAL: c_int = 0;
 //#define A_ATTRIBUTES NCURSES_BITS(~(1U - 1U),0)
 //#define A_CHARTEXT   (NCURSES_BITS(1U,0) - 1U)
-//#define A_COLOR              NCURSES_BITS(((1U) << 8) - 1U,0)
+const A_COLOR:      c_int = ((1 << 8) - 1) << (NCURSES_ATTR_SHIFT);
 const A_STANDOUT:   c_int = 1 << (NCURSES_ATTR_SHIFT + 8);
 const A_UNDERLINE:  c_int = 1 << (NCURSES_ATTR_SHIFT + 9);
 const A_REVERSE:    c_int = 1 << (NCURSES_ATTR_SHIFT + 10);
@@ -557,14 +557,14 @@ const A_BLINK:      c_int = 1 << (NCURSES_ATTR_SHIFT + 11);
 const A_DIM:        c_int = 1 << (NCURSES_ATTR_SHIFT + 12);
 const A_BOLD:       c_int = 1 << (NCURSES_ATTR_SHIFT + 13);
 
-const KEY_DOWN:     c_int = 258;
-const KEY_UP:       c_int = 259;
-const KEY_LEFT:     c_int = 260;
-const KEY_RIGHT:    c_int = 261;
+const KEY_DOWN:     wint_t = 258;
+const KEY_UP:       wint_t = 259;
+const KEY_LEFT:     wint_t = 260;
+const KEY_RIGHT:    wint_t = 261;
 
-const KEY_F0:       c_int = 264;
+const KEY_F0:       wint_t = 264;
 
-fn KEY_F(n: c_int) -> c_int {
+fn KEY_F(n: wint_t) -> wint_t {
     return KEY_F0 + n;
 }
 

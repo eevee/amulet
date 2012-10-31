@@ -221,6 +221,32 @@ impl Window {
         // TODO what if you get WEOF...?
     }
 
+    fn read_key() -> Key {
+        // TODO this name sucks
+        let ch: c::wint_t = 0;
+        let res = c::wget_wch(self.c_window, ptr::addr_of(&ch));
+        if res == c::OK {
+            return Character(ch as char);
+        }
+        else if res == c::KEY_CODE_YES {
+            return SpecialKey(
+                if ch == c::KEY_UP { KEY_UP }
+                else if ch == c::KEY_DOWN { KEY_DOWN }
+                else if ch == c::KEY_LEFT { KEY_LEFT }
+                else if ch == c::KEY_RIGHT { KEY_RIGHT }
+                else { fail; }
+            );
+        }
+        else if res == c::ERR {
+            fail;
+        }
+        else {
+            // TODO wat
+            fail;
+        }
+        // TODO what if you get WEOF...?
+    }
+
     fn readln() -> ~str unsafe {
         // TODO what should maximum buffer length be?
         // TODO or perhaps i should reimplement the getnstr function myself with getch.
@@ -316,28 +342,51 @@ pub fn init_screen() -> @Window {
 
 pub struct Style {
     c_value: c_int,
-    fg: uint,
-    bg: uint,
 }
 pub fn Style() -> Style {
-    return Style{ c_value: 0, fg: 0, bg: 0 };
+    return Style{ c_value: 0 };
 }
 impl Style {
     fn bold() -> Style {
-        return Style{ c_value: self.c_value | c::A_BOLD, fg: 0, bg: 0 };
+        return Style{ c_value: self.c_value | c::A_BOLD };
     }
 
     fn underline() -> Style {
-        return Style{ c_value: self.c_value | c::A_UNDERLINE, fg: 0, bg: 0 };
+        return Style{ c_value: self.c_value | c::A_UNDERLINE };
     }
 
-    // TODO this will run out of color pairs pretty fast.
+    // TODO this pretty much blows; color pairs are super archaic and i am
+    // trying to hack around them until i just give up and bail on the curses
+    // dependency.  works on my machine...
+    // TODO this only works for the first 16 colors anyway
     fn fg(color: uint) -> Style {
-        // XXX uh
-        return self;
+        let current_pair = self.c_value & c::A_COLOR;
+        let new_pair = current_pair & 0x0f | (color as c_int);
+        return Style{ c_value: self.c_value & !c::A_COLOR | new_pair };
     }
-
+    fn bg(color: uint) -> Style {
+        let current_pair = self.c_value & c::A_COLOR;
+        let new_pair = current_pair & 0xf0 | (color as c_int);
+        return Style{ c_value: self.c_value & !c::A_COLOR | new_pair };
+    }
         
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Key handling
+
+enum SpecialKey {
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_UP,
+    KEY_DOWN,
+    KEY_ESC,
+}
+
+enum Key {
+    Character(char),
+    SpecialKey(SpecialKey),
 }
 
 
