@@ -2,6 +2,17 @@
 
 use libc::*;
 
+// Manually generated from term.h
+// TODO less manual would be appreciated
+type TERMINAL = c_void;
+extern {
+    const cur_term: *TERMINAL;
+
+    fn setupterm(arg1: *c_char, arg2: c_int, arg3: *c_int) -> c_int;
+}
+
+
+
 // This is not necessarily true, but it's *probably* true.  Defined in wchar.h
 // but missing from Rust's libc definitions.
 type wint_t = c_uint;
@@ -352,7 +363,7 @@ extern  {
     fn tigetnum(++arg1: *c_schar) -> c_int;
     fn tigetstr(++arg1: *c_schar) -> *c_schar;
     fn putp(++arg1: *c_schar) -> c_int;
-    fn tparm(++arg1: *c_schar) -> *c_schar;
+    fn tparm(++arg1: *c_schar, ++arg2: c_int, ++arg3: c_int) -> *c_schar;
     fn tiparm(++arg1: *c_schar) -> *c_schar;
     fn getattrs(++arg1: *WINDOW) -> c_int;
     fn getcurx(++arg1: *WINDOW) -> c_int;

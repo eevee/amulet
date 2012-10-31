@@ -1,6 +1,6 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-use libc::{c_char,c_int,c_short,c_void,size_t};
+use libc::{c_char,c_int,c_schar,c_short,c_void,size_t};
 
 use c;
 
@@ -8,8 +8,128 @@ extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
 }
 
+
+struct Terminal {
+    c_terminfo: *c::TERMINAL,
+
+    // TODO drop?
+}
+pub fn Terminal() -> @Terminal {
+    let error_code: c_int = 0;
+    // NULL first arg means read TERM from env (TODO).  second arg is a fd to
+    // spew to (eh).  third is error output.
+    // TODO allegedly setupterm doesn't work on BSD?
+    let res = c::setupterm(ptr::null(), 1, ptr::addr_of(&error_code));
+
+    if res != c::OK {
+        if error_code == -1 {
+            fail ~"Couldn't find terminfo database";
+        }
+        else if error_code == 0 {
+            fail ~"Couldn't identify terminal";
+        }
+        else if error_code == 1 {
+            // The manual puts this as "terminal is hard-copy" but come on.
+            fail ~"Terminal appears to be made of paper";
+        }
+        else {
+            fail ~"Something is totally fucked";
+        }
+    }
+
+    // Okay; now terminfo is sitting in a magical global somewhere.  Snag a
+    // pointer to it.
+    let terminfo = c::cur_term;
+
+    return @Terminal{ c_terminfo: terminfo };
+}
+impl Terminal {
+    // Capability inspection
+
+    // TODO curses actually exposes all the names of all the capabilities!  so
+    // let's just turn this all into a couple maps at startup and avoid all
+    // this garbage.
+    fn cap_flag(name: &str) -> bool {
+        let mut value = 0;
+        do str::as_c_str(name) |bytes| {
+            value = c::tigetflag(bytes);
+        }
+
+        if value == -1 {
+            // wrong type
+            fail;
+        }
+
+        // Otherwise, is 0 or 1
+        return value as bool;
+    }
+
+    fn cap_num(name: &str) -> uint {
+        let mut value = -1;
+        do str::as_c_str(name) |bytes| {
+            value = c::tigetnum(bytes);
+        }
+
+        if value == -2 {
+            // wrong type
+            fail;
+        }
+        else if value == -1 {
+            // missing; should be None
+            fail;
+        }
+
+        return value as uint;
+    }
+
+    fn cap_str(name: &str) -> ~str unsafe {
+        let mut value = ptr::null();
+        do str::as_c_str(name) |bytes| {
+            value = c::tigetstr(bytes);
+        }
+
+        if value == ptr::null() {
+            // missing; should be None really
+            fail;
+        }
+        else if value == cast::reinterpret_cast(&-1) {
+            // wrong type
+            fail;
+        }
+
+        return str::raw::from_c_str(value);
+    }
+
+
+    fn height() -> uint {
+        // TODO should use ioctl, and cache unless WINCH, and...
+        return self.cap_num("lines");
+    }
+
+
+    // Output
+    fn print(s: &str) {
+        // TODO well.  should be a bit more flexible, i guess.
+        io::print(s);
+    }
+
+
+    // Some stuff
+    fn at(x: uint, y: uint, cb: &fn()) unsafe {
+        self.print(self.cap_str("sc"));  // save cursor
+        // TODO check cup
+        do str::as_c_str(self.cap_str("cup")) |bytes| {
+            self.print(str::raw::from_c_str(c::tparm(bytes, y as c_int, x as c_int)));
+        }
+        cb();
+        self.print(self.cap_str("rc"));  // restore cursor
+    }
+}
+
+
 struct Window {
     c_window: *c::WINDOW,
+    term: @Terminal,
 
     drop {
         // TODO with multiple windows, need a Rust-level reference to the parent
@@ -30,7 +150,9 @@ fn init_window(c_window: *c::WINDOW) -> @Window {
     // TODO what are multiple screens?
     c::keypad(c_window, 1);
 
-    return @Window{ c_window: c_window };
+    let term = Terminal();
+
+    return @Window{ c_window: c_window, term: term };
 }
 
 impl Window {
@@ -194,18 +316,28 @@ pub fn init_screen() -> @Window {
 
 pub struct Style {
     c_value: c_int,
+    fg: uint,
+    bg: uint,
 }
 pub fn Style() -> Style {
-    return Style{ c_value: 0 };
+    return Style{ c_value: 0, fg: 0, bg: 0 };
 }
 impl Style {
     fn bold() -> Style {
-        return Style{ c_value: self.c_value | c::A_BOLD };
+        return Style{ c_value: self.c_value | c::A_BOLD, fg: 0, bg: 0 };
     }
 
     fn underline() -> Style {
-        return Style{ c_value: self.c_value | c::A_UNDERLINE };
+        return Style{ c_value: self.c_value | c::A_UNDERLINE, fg: 0, bg: 0 };
     }
+
+    // TODO this will run out of color pairs pretty fast.
+    fn fg(color: uint) -> Style {
+        // XXX uh
+        return self;
+    }
+
+        
 }
 
 
