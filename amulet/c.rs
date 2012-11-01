@@ -5,10 +5,18 @@ use libc::*;
 // Manually generated from term.h
 // TODO less manual would be appreciated
 type TERMINAL = c_void;
+#[link_args = "-lncursesw"]
 extern {
     const cur_term: *TERMINAL;
 
+    const boolnames: **c_char;
+    const numnames: **c_char;
+    const strnames: **c_char;
+    const boolcodes: **c_char;
+
     fn setupterm(arg1: *c_char, arg2: c_int, arg3: *c_int) -> c_int;
+    fn set_curterm(arg1: *TERMINAL) -> *TERMINAL;
+    fn tparm(format: *c_char, arg1: c_long, arg2: c_long, arg3: c_long, arg4: c_long, arg5: c_long, arg6: c_long, arg7: c_long, arg8: c_long, arg9: c_long) -> *c_char;
 }
 
 
@@ -363,7 +371,7 @@ extern  {
     fn tigetnum(++arg1: *c_schar) -> c_int;
     fn tigetstr(++arg1: *c_schar) -> *c_schar;
     fn putp(++arg1: *c_schar) -> c_int;
-    fn tparm(++arg1: *c_schar, ++arg2: c_int, ++arg3: c_int) -> *c_schar;
+    //fn tparm(++arg1: *c_schar, ++arg2: c_int, ++arg3: c_int) -> *c_schar;
     fn tiparm(++arg1: *c_schar) -> *c_schar;
     fn getattrs(++arg1: *WINDOW) -> c_int;
     fn getcurx(++arg1: *WINDOW) -> c_int;

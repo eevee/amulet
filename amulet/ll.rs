@@ -1,6 +1,10 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-use libc::{c_char,c_int,c_schar,c_short,c_void,size_t};
+extern mod std;
+
+use libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t};
+
+use std::map::HashMap;
 
 use c;
 
@@ -11,6 +15,8 @@ extern {
 
 struct Terminal {
     c_terminfo: *c::TERMINAL,
+
+    //term_type: ~str,
 
     // TODO drop?
 }
@@ -38,18 +44,30 @@ pub fn Terminal() -> @Terminal {
     }
 
     // Okay; now terminfo is sitting in a magical global somewhere.  Snag a
-    // pointer to it.
+    // pointer to it for the moment.
     let terminfo = c::cur_term;
 
     return @Terminal{ c_terminfo: terminfo };
 }
 impl Terminal {
+    // ------------------------------------------------------------------------
     // Capability inspection
+    // TODO ideally, ultimately, every useful cap will be covered here...
 
-    // TODO curses actually exposes all the names of all the capabilities!  so
-    // let's just turn this all into a couple maps at startup and avoid all
-    // this garbage.
+    // TODO these should use ioctl, and cache unless WINCH, and...
+    fn height() -> uint {
+        return self.cap_num("lines");
+    }
+    fn width() -> uint {
+        return self.cap_num("cols");
+    }
+
+    // ------------------------------------------------------------------------
+    // Very-low-level capability inspection
+
     fn cap_flag(name: &str) -> bool {
+        c::set_curterm(self.c_terminfo);
+
         let mut value = 0;
         do str::as_c_str(name) |bytes| {
             value = c::tigetflag(bytes);
@@ -65,6 +83,8 @@ impl Terminal {
     }
 
     fn cap_num(name: &str) -> uint {
+        c::set_curterm(self.c_terminfo);
+
         let mut value = -1;
         do str::as_c_str(name) |bytes| {
             value = c::tigetnum(bytes);
@@ -82,7 +102,9 @@ impl Terminal {
         return value as uint;
     }
 
-    fn cap_str(name: &str) -> ~str unsafe {
+    fn _cap_cstr(name: &str) -> *c_char unsafe {
+        c::set_curterm(self.c_terminfo);
+
         let mut value = ptr::null();
         do str::as_c_str(name) |bytes| {
             value = c::tigetstr(bytes);
@@ -97,14 +119,27 @@ impl Terminal {
             fail;
         }
 
+        return value;
+    }
+
+    fn cap_str(name: &str) -> ~str unsafe {
+        let value = self._cap_cstr(name);
+
         return str::raw::from_c_str(value);
     }
 
+    fn cap_fmt1(name: &str, param1: int) -> ~str unsafe {
+        let format = self._cap_cstr(name);
+        let value = c::tparm(format, param1 as c_long, 0, 0, 0, 0, 0, 0, 0, 0);
 
-    fn height() -> uint {
-        // TODO should use ioctl, and cache unless WINCH, and...
-        return self.cap_num("lines");
+        let rv = str::raw::from_c_str(value);
+        // tparm() returns a created string, so i think we need to free it
+        // TODO you are "supposed" to use tputs to print this
+        //libc::free(value as *c_void);
+
+        return rv;
     }
+
 
 
     // Output
@@ -119,7 +154,7 @@ impl Terminal {
         self.print(self.cap_str("sc"));  // save cursor
         // TODO check cup
         do str::as_c_str(self.cap_str("cup")) |bytes| {
-            self.print(str::raw::from_c_str(c::tparm(bytes, y as c_int, x as c_int)));
+            self.print(str::raw::from_c_str(c::tparm(bytes, y as c_long, x as c_long, 0, 0, 0, 0, 0, 0, 0)));
         }
         cb();
         self.print(self.cap_str("rc"));  // restore cursor
@@ -182,6 +217,7 @@ impl Window {
     fn print(msg: &str) {
         // TODO return value
         // TODO this is variadic; string template exploits abound, should use %s really
+        // TODO also should handle literal escape sequences somehow...?  strip?  escape?
         do str::as_c_str(msg) |bytes| {
             c::wprintw(self.c_window, bytes);
         }
@@ -270,7 +306,22 @@ impl Window {
     fn attrprint(s: &str, style: Style) {
         // TODO this leaves state behind...  set back to normal after?
         // TODO should probably interact nicely with background color
-        c::wattrset(self.c_window, style.c_value);
+        c::wattrset(self.c_window, style.c_value());
+
+        /*
+        if style.fg_color != -1 {
+            do str::as_c_str(self.term.cap_fmt1(~"setaf", style.fg_color)) |bytes| {
+                // TODO where does this think it's going ff
+                c::putp(bytes);
+            }
+        }
+        if style.bg_color != -1 {
+            do str::as_c_str(self.term.cap_fmt1(~"setab", style.bg_color)) |bytes| {
+                c::wprintw(self.c_window, bytes);
+            }
+        }
+        */
+
         // TODO variadic
         do str::as_c_str(s) |bytes| {
             c::wprintw(self.c_window, bytes);
@@ -302,6 +353,17 @@ impl Window {
             ptr::addr_of(&__char_to_cchar_t(bl)),
             ptr::addr_of(&__char_to_cchar_t(br))
         );
+    }
+
+
+    // Misc
+
+    // TODO flesh this out.  apparently '2' for 'very visible' is also
+    // supported?
+    fn hide_cursor() {
+        // TODO return value
+        // TODO this belongs to the terminal, not a window
+        c::curs_set(0);
     }
 }
 
@@ -341,18 +403,27 @@ pub fn init_screen() -> @Window {
 // Attributes
 
 pub struct Style {
-    c_value: c_int,
+    // TODO i guess these could be compacted into a bitstring, but eh.
+    is_bold: bool,
+    is_underline: bool,
+
+    // TODO strictly speaking these should refer to entire colors, not just
+    // color numbers, for compatability with a truckload of other kinds of
+    // terminals.  but, you know.
+    // TODO -1 for the default is super hokey and only for curses compat
+    fg_color: int,
+    bg_color: int,
 }
 pub fn Style() -> Style {
-    return Style{ c_value: 0 };
+    return Style{ is_bold: false, is_underline: false, fg_color: -1, bg_color: -1 };
 }
 impl Style {
     fn bold() -> Style {
-        return Style{ c_value: self.c_value | c::A_BOLD };
+        return Style{ is_bold: true, ..self };
     }
 
     fn underline() -> Style {
-        return Style{ c_value: self.c_value | c::A_UNDERLINE };
+        return Style{ is_underline: true, ..self };
     }
 
     // TODO this pretty much blows; color pairs are super archaic and i am
@@ -363,19 +434,43 @@ impl Style {
     // before capturing the window...  :|
     // TODO this doesn't handle default colors correctly, because those are
     // color index -1.
-    fn fg(color: uint) -> Style {
-        let current_pair = c::PAIR_NUMBER(self.c_value);
-        let new_pair = current_pair & 0x0f | (color as c_int << 4);
-        c::init_pair(new_pair as c_short, ((new_pair & 0xf0) >> 4) as c_short, (new_pair & 0x0f) as c_short);
-        return Style{ c_value: self.c_value & !c::A_COLOR | c::COLOR_PAIR(new_pair) };
+    fn fg(color: int) -> Style {
+        return Style{ fg_color: color, ..self };
     }
-    fn bg(color: uint) -> Style {
-        let current_pair = c::PAIR_NUMBER(self.c_value);
-        let new_pair = current_pair & 0xf0 | (color as c_int);
-        c::init_pair(new_pair as c_short, ((new_pair & 0xf0) >> 4) as c_short, (new_pair & 0x0f) as c_short);
-        return Style{ c_value: self.c_value & !c::A_COLOR | c::COLOR_PAIR(new_pair) };
+    fn bg(color: int) -> Style {
+        return Style{ bg_color: color, ..self };
     }
+
+    fn c_value() -> c_int {
+        let mut rv: c_int = 0;
+
+        if self.is_bold {
+            rv |= c::A_BOLD;
+        }
+        if self.is_underline {
+            rv |= c::A_UNDERLINE;
+        }
         
+        // Calculate a pair number to consume.  It's a signed short, so use the
+        // lower 8 bits for fg and upper 7 for bg
+        // TODO without ext_colors, this gets all fucked up if the pair number
+        // is anything over 255
+        let fg = match self.fg_color {
+            -1 => 14,
+            _ => self.fg_color,
+        };
+        let bg = match self.bg_color {
+            -1 => 14,
+            _ => self.bg_color,
+        };
+        //let pair = ((bg << 4) | fg) as c_short;
+        let pair = fg as c_short;
+        c::init_pair(pair, self.fg_color as c_short, self.bg_color as c_short);
+
+        rv |= c::COLOR_PAIR(pair as c_int);
+
+        return rv;
+    }
 }
 
 
