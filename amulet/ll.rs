@@ -359,15 +359,21 @@ impl Style {
     // trying to hack around them until i just give up and bail on the curses
     // dependency.  works on my machine...
     // TODO this only works for the first 16 colors anyway
+    // TODO calling start_color() resets all color pairs, so you can't use this
+    // before capturing the window...  :|
+    // TODO this doesn't handle default colors correctly, because those are
+    // color index -1.
     fn fg(color: uint) -> Style {
-        let current_pair = self.c_value & c::A_COLOR;
-        let new_pair = current_pair & 0x0f | (color as c_int);
-        return Style{ c_value: self.c_value & !c::A_COLOR | new_pair };
+        let current_pair = c::PAIR_NUMBER(self.c_value);
+        let new_pair = current_pair & 0x0f | (color as c_int << 4);
+        c::init_pair(new_pair as c_short, ((new_pair & 0xf0) >> 4) as c_short, (new_pair & 0x0f) as c_short);
+        return Style{ c_value: self.c_value & !c::A_COLOR | c::COLOR_PAIR(new_pair) };
     }
     fn bg(color: uint) -> Style {
-        let current_pair = self.c_value & c::A_COLOR;
+        let current_pair = c::PAIR_NUMBER(self.c_value);
         let new_pair = current_pair & 0xf0 | (color as c_int);
-        return Style{ c_value: self.c_value & !c::A_COLOR | new_pair };
+        c::init_pair(new_pair as c_short, ((new_pair & 0xf0) >> 4) as c_short, (new_pair & 0x0f) as c_short);
+        return Style{ c_value: self.c_value & !c::A_COLOR | c::COLOR_PAIR(new_pair) };
     }
         
 }
