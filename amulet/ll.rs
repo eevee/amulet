@@ -18,7 +18,14 @@ struct Terminal {
 
     //term_type: ~str,
 
-    // TODO drop?
+    drop {
+        // TODO any C freeage needed here?
+
+        // Undo the setup inflicted on the terminal
+        c::nl();
+        //c::echo();
+        c::nocbreak();
+    }
 }
 pub fn Terminal() -> @Terminal {
     let error_code: c_int = 0;
@@ -46,6 +53,21 @@ pub fn Terminal() -> @Terminal {
     // Okay; now terminfo is sitting in a magical global somewhere.  Snag a
     // pointer to it for the moment.
     let terminfo = c::cur_term;
+
+    // Do some of curses's initial setup
+
+    // TODO return value
+    c::start_color();
+    // TODO return value
+    // TODO this is an ncurses extension...  but we're linking with ncurses,
+    // so, eh
+    c::use_default_colors();
+
+    // TODO these are also global, yikes
+    c::cbreak();
+    //c::noecho();
+    c::nonl();
+
 
     return @Terminal{ c_terminfo: terminfo };
 }
@@ -383,18 +405,6 @@ pub fn init_screen() -> @Window {
         fail;
     }
 
-    // TODO return value
-    c::start_color();
-    // TODO return value
-    // TODO this is an ncurses extension...  but we're linking with ncurses,
-    // so, eh
-    c::use_default_colors();
-
-    // TODO these are also global, yikes
-    c::cbreak();
-    //c::noecho();
-    c::nonl();
-
     return init_window(c_window);
 }
 
@@ -415,7 +425,7 @@ pub struct Style {
     bg_color: int,
 }
 pub fn Style() -> Style {
-    return Style{ is_bold: false, is_underline: false, fg_color: -1, bg_color: -1 };
+    return NORMAL;
 }
 impl Style {
     fn bold() -> Style {
@@ -472,6 +482,8 @@ impl Style {
         return rv;
     }
 }
+
+pub const NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color: -1, bg_color: -1 };
 
 
 ////////////////////////////////////////////////////////////////////////////////
