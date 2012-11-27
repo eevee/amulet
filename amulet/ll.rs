@@ -10,6 +10,9 @@ use c;
 
 extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
+
+    // XXX why the fuck is this not available
+    const stdout: *libc::FILE;
 }
 
 
@@ -56,6 +59,7 @@ pub fn Terminal() -> @Terminal {
 
     // Do some of curses's initial setup
 
+    /*
     // TODO return value
     c::start_color();
     // TODO return value
@@ -67,6 +71,7 @@ pub fn Terminal() -> @Terminal {
     c::cbreak();
     //c::noecho();
     c::nonl();
+    */
 
 
     return @Terminal{ c_terminfo: terminfo };
@@ -78,16 +83,16 @@ impl Terminal {
 
     // TODO these should use ioctl, and cache unless WINCH, and...
     fn height() -> uint {
-        return self.cap_num("lines");
+        return self.numeric_cap("lines");
     }
     fn width() -> uint {
-        return self.cap_num("cols");
+        return self.numeric_cap("cols");
     }
 
     // ------------------------------------------------------------------------
     // Very-low-level capability inspection
 
-    fn cap_flag(name: &str) -> bool {
+    fn flag_cap(name: &str) -> bool {
         c::set_curterm(self.c_terminfo);
 
         let mut value = 0;
@@ -104,7 +109,7 @@ impl Terminal {
         return value as bool;
     }
 
-    fn cap_num(name: &str) -> uint {
+    fn numeric_cap(name: &str) -> uint {
         c::set_curterm(self.c_terminfo);
 
         let mut value = -1;
@@ -124,7 +129,7 @@ impl Terminal {
         return value as uint;
     }
 
-    fn _cap_cstr(name: &str) -> *c_char unsafe {
+    fn _string_cap_cstr(name: &str) -> *c_char unsafe {
         c::set_curterm(self.c_terminfo);
 
         let mut value = ptr::null();
@@ -144,42 +149,157 @@ impl Terminal {
         return value;
     }
 
-    fn cap_str(name: &str) -> ~str unsafe {
-        let value = self._cap_cstr(name);
+    fn string_cap(name: &str) -> ~str unsafe {
+        let value = self._string_cap_cstr(name);
 
         return str::raw::from_c_str(value);
     }
 
-    fn cap_fmt1(name: &str, param1: int) -> ~str unsafe {
-        let format = self._cap_cstr(name);
-        let value = c::tparm(format, param1 as c_long, 0, 0, 0, 0, 0, 0, 0, 0);
+    // TODO i am not really liking the string capability handling anywhere in
+    // here.
+    // the variable arguments thing sucks ass.  we should at LEAST check for
+    // how many arguments are expected, and ideally enforce it at compile time
+    // somehow -- perhaps with a method for every string cap.  (yikes.  having
+    // keys be a separate thing would help, though.)
 
-        let rv = str::raw::from_c_str(value);
-        // tparm() returns a created string, so i think we need to free it
-        // TODO you are "supposed" to use tputs to print this
-        //libc::free(value as *c_void);
+    /** Returns a string capability, formatted with the passed vector of
+     * arguments.
+     *
+     * Passing the correct number of arguments is your problem, though any
+     * missing arguments become zero.  No capability requires more than 9
+     * arguments.
+     */
+    fn format_cap(name: &str, args: &[int]) -> ~str {
+        c::set_curterm(self.c_terminfo);
+
+        let template = self._string_cap_cstr(name);
+        let padded_args = args.to_vec() + [0, .. 8];
+        let formatted = c::tparm(
+            template,
+            padded_args[0] as c_long,
+            padded_args[1] as c_long,
+            padded_args[2] as c_long,
+            padded_args[3] as c_long,
+            padded_args[4] as c_long,
+            padded_args[5] as c_long,
+            padded_args[6] as c_long,
+            padded_args[7] as c_long,
+            padded_args[8] as c_long
+        );
+
+        let rv = unsafe { str::raw::from_c_str(formatted) };
 
         return rv;
+    }
+
+    fn _write_capx(name: &str,
+            arg1: c_long, arg2: c_long, arg3: c_long,
+            arg4: c_long, arg5: c_long, arg6: c_long,
+            arg7: c_long, arg8: c_long, arg9: c_long)
+    {
+        c::set_curterm(self.c_terminfo);
+
+        let template = self._string_cap_cstr(name);
+
+        let formatted = c::tparm(
+            template, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+
+        // TODO we are supposed to use curses's tputs(3) to print formatted
+        // capabilities, because they sometimes contain "padding" of the form
+        // $<5>.  alas, tputs always prints to stdout!  but we don't yet allow
+        // passing in a custom fd so i guess that's okay.  would be nice to
+        // reimplement this in Rust code someday though.
+        c::putp(formatted);
+
+        // TODO another reason dipping into C sucks: we have to manually flush
+        // its buffer every time we do so.
+        libc::fflush(stdout);
+    }
+
+    // TODO seems it would make sense to cache non-formatted capabilities (as
+    // well as numeric/flag ones), which i think blessings does
+    fn write_cap(cap_name: &str) {
+        // If we're calling this function then this capability really shouldn't
+        // take any arguments, but someone might have screwed up, or it may
+        // have an escaped % or something.  Best do the whole formatting thing.
+        self._write_capx(cap_name, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+    fn write_cap2(cap_name: &str, arg1: int, arg2: int) {
+        self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
 
 
     // Output
-    fn print(s: &str) {
+
+    fn write(s: &str) {
+        io::stdout().flush();
         // TODO well.  should be a bit more flexible, i guess.
         io::print(s);
+        io::stdout().flush();
+    }
+
+    fn attrwrite(s: &str, style: &Style) {
+        // TODO try to cut down on the amount of back-and-forth between c
+        // strings and rust strings all up in here
+        if style.is_underline {
+            self.write_cap("smul");
+        }
+
+        // TODO this may need some escaping or whatever -- or maybe that
+        // belongs in write()
+        self.write(s);
+
+        // Clean up after ourselves: reset style to default
+        // TODO this is ripe for some optimizing
+        self.write_cap("sgr0");
     }
 
 
     // Some stuff
     fn at(x: uint, y: uint, cb: &fn()) unsafe {
-        self.print(self.cap_str("sc"));  // save cursor
-        // TODO check cup
-        do str::as_c_str(self.cap_str("cup")) |bytes| {
-            self.print(str::raw::from_c_str(c::tparm(bytes, y as c_long, x as c_long, 0, 0, 0, 0, 0, 0, 0)));
-        }
+        self.write_cap("sc");  // save cursor
+        // TODO check for existence of cup
+        self.write_cap2("cup", y as int, x as int);
+
         cb();
-        self.print(self.cap_str("rc"));  // restore cursor
+
+        self.write_cap("rc");  // restore cursor
+    }
+
+    // Full-screen
+
+    // TODO wonder if this could use a borrowed or unique window, since it's
+    // local to this function?  (unique would also prevent its escape from
+    // here.)  really really REALLY sucks that we can't let the caller decide
+    // easily.
+    fn fullscreen(@self, cb: &fn(@Window)) {
+        // TODO kind of want to have a way to generically pair toggled
+        // capabilities like these
+        self.write_cap("smcup");  // enter fullscreen
+        self.write_cap("smkx");  // enable "keypad" mode
+
+        self.write_cap("clear");  // clear the screen first
+
+        // TODO intrflush, or is that a curses thing?
+
+        // TODO need to switch to raw mode somewhere.  is this an appropriate
+        // place?  i assume if you have a fullscreen app then you want to get
+        // keypresses.
+
+        let win = @Window{
+            c_window: ptr::null(),  // TODO obviously
+
+            term: self,
+            x: 0,
+            y: 0,
+            width: self.width(),
+            height: self.height(),
+        };
+        cb(win);
+
+        self.write_cap("rmkx");  // disable "keypad" mode
+        self.write_cap("rmcup");  // leave fullscreen
     }
 }
 
@@ -187,6 +307,14 @@ impl Terminal {
 struct Window {
     c_window: *c::WINDOW,
     term: @Terminal,
+
+    x: uint,
+    y: uint,
+    // TODO: what happens to width and height on resize?  default is obviously
+    // "nothing", but seems it would be nice to support default behavior like
+    // preserving bottom/right margins or scaling proportionally
+    width: uint,
+    height: uint,
 
     drop {
         // TODO with multiple windows, need a Rust-level reference to the parent
@@ -209,7 +337,7 @@ fn init_window(c_window: *c::WINDOW) -> @Window {
 
     let term = Terminal();
 
-    return @Window{ c_window: c_window, term: term };
+    return @Window{ c_window: c_window, term: term,   x: 0, y: 0, width: 0, height: 0 };
 }
 
 impl Window {
@@ -245,14 +373,30 @@ impl Window {
         }
     }
 
+    fn write(msg: &str) {
+        // TODO write to a buffer, only paint on repaint()
+        self.term.write(msg);
+    }
+
     fn repaint() {
         // TODO return value
-        c::wrefresh(self.c_window);
+        //c::wrefresh(self.c_window);
+
+        // TODO implement me
+
+        io::stdout().flush();
     }
 
     fn clear() {
-        // TODO return value
-        c::wclear(self.c_window);
+        // TODO only touch in-memory screen and update on repaint
+        // TODO this only works for the root window with no child windows; cute
+        // optimization but not reliable in general.  also, moves the cursor,
+        // which may not be desired.
+        // TODO should this be done on fullscreen by default, or is it anyway?
+
+        // TODO should this be a method on the terminal, since it's just a cap?
+
+        self.term.write_cap("clear");
     }
 
     // Input
@@ -280,6 +424,17 @@ impl Window {
     }
 
     fn read_key() -> Key {
+        // TODO don't hardcode stdin
+        let fh = io::stdin();
+
+        // TODO this doesn't time out, doesn't check for key sequences, etc
+        // etc.  it's hilariously sad.
+        let byte = fh.read_byte();
+
+        return Character(byte as char);
+
+
+        // TODO 
         // TODO this name sucks
         let ch: c::wint_t = 0;
         let res = c::wget_wch(self.c_window, ptr::addr_of(&ch));
@@ -304,6 +459,16 @@ impl Window {
         }
         // TODO what if you get WEOF...?
     }
+
+    /** Blocks until a key is pressed.
+     *
+     * This is identical to `read_key()`, except it returns nothing and reads
+     * a little better if you don't care which key was pressed.
+     */
+    fn pause() {
+        self.read_key();
+    }
+
 
     fn readln() -> ~str unsafe {
         // TODO what should maximum buffer length be?

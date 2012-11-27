@@ -7,8 +7,10 @@
 extern mod amulet;
 
 fn main() {
-    let window = amulet::ll::init_screen();
-    window.print("Hello World !!!");
-    window.repaint();
-    window.getch();
+    let term = amulet::ll::Terminal();
+    do term.fullscreen |window| {
+        window.write("Hello World !!!");
+        window.repaint();
+        window.pause();
+    }
 }

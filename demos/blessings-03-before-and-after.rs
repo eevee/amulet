@@ -10,6 +10,7 @@ fn main() {
     let term = amulet::ll::Terminal();
 
     do term.at(0, term.height() - 1) {
-        term.print("This is pretty!");
+        term.write("This is ");
+        term.attrwrite("pretty!", &amulet::ll::Style().underline());
     }
 }
