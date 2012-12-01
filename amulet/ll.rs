@@ -7,12 +7,24 @@ use libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t};
 use std::map::HashMap;
 
 use c;
+use termios;
 
 extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
 
     // XXX why the fuck is this not available
     const stdout: *libc::FILE;
+}
+
+
+/** Prints a given termcap sequence when it goes out of scope. */
+struct TidyTermcap {
+    term: &Terminal,
+    cap: &str,
+
+    drop {
+        self.term.write_cap(self.cap);
+    }
 }
 
 
@@ -228,6 +240,12 @@ impl Terminal {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
+    fn write_tidy_cap(&self, do_cap: &str, undo_cap: &self/str) -> ~TidyTermcap/&self {
+        self.write_cap(do_cap);
+
+        return ~TidyTermcap{ term: self, cap: undo_cap };
+    }
+
 
 
     // Output
@@ -274,18 +292,22 @@ impl Terminal {
     // here.)  really really REALLY sucks that we can't let the caller decide
     // easily.
     fn fullscreen(@self, cb: &fn(@Window)) {
-        // TODO kind of want to have a way to generically pair toggled
-        // capabilities like these
-        self.write_cap("smcup");  // enter fullscreen
-        self.write_cap("smkx");  // enable "keypad" mode
+        // Enter fullscreen
+        let _tidy_cup = self.write_tidy_cap("smcup", "rmcup");
 
-        self.write_cap("clear");  // clear the screen first
+        // Enable keypad mode
+        let _tidy_kx = self.write_tidy_cap("smkx", "rmkx");
+
+        // And clear the screen first
+        self.write_cap("clear");
 
         // TODO intrflush, or is that a curses thing?
 
-        // TODO need to switch to raw mode somewhere.  is this an appropriate
-        // place?  i assume if you have a fullscreen app then you want to get
-        // keypresses.
+        // TODO so, we need to switch to raw mode *some*where.  is this an
+        // appropriate place?  i assume if you have a fullscreen app then you
+        // want to get keypresses.
+        let tidy_termstate = termios::TidyTerminalState(0);  // TODO need real fd omfg
+        tidy_termstate.raw();
 
         let win = @Window{
             c_window: ptr::null(),  // TODO obviously
@@ -297,9 +319,6 @@ impl Terminal {
             height: self.height(),
         };
         cb(win);
-
-        self.write_cap("rmkx");  // disable "keypad" mode
-        self.write_cap("rmcup");  // leave fullscreen
     }
 }
 

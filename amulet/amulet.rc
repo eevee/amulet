@@ -7,4 +7,5 @@ pub mod c;
 // TODO unraw
 // TODO unlegacy
 
+pub mod termios;
 pub mod ll;
