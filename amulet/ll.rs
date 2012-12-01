@@ -29,7 +29,13 @@ struct TidyTermcap {
 
 
 struct Terminal {
+    in_fd: c_int,
+    in_file: io::Reader,
+    out_fd: c_int,
+    out_file: io::Writer,
+
     c_terminfo: *c::TERMINAL,
+    tidy_termstate: ~termios::TidyTerminalState,
 
     //term_type: ~str,
 
@@ -44,10 +50,12 @@ struct Terminal {
 }
 pub fn Terminal() -> @Terminal {
     let error_code: c_int = 0;
-    // NULL first arg means read TERM from env (TODO).  second arg is a fd to
-    // spew to (eh).  third is error output.
+    // NULL first arg means read TERM from env (TODO).
+    // second arg is a fd to spew to on error, but it's not used when there's
+    // an error pointer.
+    // third arg is a var to stick the error code in.
     // TODO allegedly setupterm doesn't work on BSD?
-    let res = c::setupterm(ptr::null(), 1, ptr::addr_of(&error_code));
+    let res = c::setupterm(ptr::null(), -1, ptr::addr_of(&error_code));
 
     if res != c::OK {
         if error_code == -1 {
@@ -66,27 +74,21 @@ pub fn Terminal() -> @Terminal {
     }
 
     // Okay; now terminfo is sitting in a magical global somewhere.  Snag a
-    // pointer to it for the moment.
+    // pointer to it.
     let terminfo = c::cur_term;
 
-    // Do some of curses's initial setup
+    return @Terminal{
+        // TODO would be nice to parametrize these, but Reader and Writer do
+        // not yet expose a way to get the underlying fd, which makes the API
+        // sucky
+        in_fd: 0,
+        in_file: io::stdin(),
+        out_fd: 1,
+        out_file: io::stdout(),
 
-    /*
-    // TODO return value
-    c::start_color();
-    // TODO return value
-    // TODO this is an ncurses extension...  but we're linking with ncurses,
-    // so, eh
-    c::use_default_colors();
-
-    // TODO these are also global, yikes
-    c::cbreak();
-    //c::noecho();
-    c::nonl();
-    */
-
-
-    return @Terminal{ c_terminfo: terminfo };
+        c_terminfo: terminfo,
+        tidy_termstate: termios::TidyTerminalState(0),
+    };
 }
 impl Terminal {
     // ------------------------------------------------------------------------
@@ -153,7 +155,7 @@ impl Terminal {
             // missing; should be None really
             fail;
         }
-        else if value == cast::reinterpret_cast(&-1) {
+        else if value == cast::transmute(-1) {
             // wrong type
             fail;
         }
@@ -306,7 +308,7 @@ impl Terminal {
         // TODO so, we need to switch to raw mode *some*where.  is this an
         // appropriate place?  i assume if you have a fullscreen app then you
         // want to get keypresses.
-        let tidy_termstate = termios::TidyTerminalState(0);  // TODO need real fd omfg
+        let tidy_termstate = termios::TidyTerminalState(self.in_fd);
         tidy_termstate.raw();
 
         let win = @Window{

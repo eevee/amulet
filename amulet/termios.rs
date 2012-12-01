@@ -165,7 +165,7 @@ extern {
   * settings it had when this object was created.  It's like RAII, except
   * without the C++ braindamage.
   */
-struct TidyTerminalState {
+pub struct TidyTerminalState {
     priv c_fd: c_int,
     priv mut c_termios_orig: imp::termios,
     priv mut c_termios_cur: imp::termios,
@@ -175,7 +175,7 @@ struct TidyTerminalState {
     }
 }
 
-pub fn TidyTerminalState(fd: int) -> ~TidyTerminalState {
+pub fn TidyTerminalState(fd: c_int) -> ~TidyTerminalState {
     let c_termios = copy imp::BLANK_TERMIOS;
 
     // TODO this has a retval, but...  eh...
