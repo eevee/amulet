@@ -224,8 +224,10 @@ impl TidyTerminalState {
         self.c_termios_cur.c_oflag &= !(
             imp::OPOST      // turn off "impl-specific processing" -- this
                             // includes, e.g., converting tabs to spaces
-            | imp::ONLCR    // don't convert nl to cr
+            // TODO turning this off makes \n not work as you'd expect
+            //| imp::ONLCR    // don't convert nl to cr
         );
+        self.c_termios_cur.c_oflag |= imp::ONLCR;
 
         self.c_termios_cur.c_cflag &= !(
             imp::PARENB     // turn off parity generation/checking

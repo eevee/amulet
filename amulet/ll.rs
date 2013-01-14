@@ -8,6 +8,7 @@ use std::map::HashMap;
 
 use c;
 use termios;
+use trie::Trie;
 
 extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
@@ -34,8 +35,10 @@ struct Terminal {
     out_fd: c_int,
     out_file: io::Writer,
 
-    c_terminfo: *c::TERMINAL,
-    tidy_termstate: ~termios::TidyTerminalState,
+    keypress_trie: @Trie<u8, Key>,
+
+    priv c_terminfo: *c::TERMINAL,
+    priv tidy_termstate: ~termios::TidyTerminalState,
 
     //term_type: ~str,
 
@@ -77,7 +80,25 @@ pub fn Terminal() -> @Terminal {
     // pointer to it.
     let terminfo = c::cur_term;
 
-    return @Terminal{
+    let keypress_trie = Trie();
+    let mut p: **c_char = ptr::to_unsafe_ptr(&c::strnames[0]);
+    unsafe {
+        while *p != ptr::null() {
+            let capname = str::raw::from_c_str(*p);
+
+            if capname[0] == "k"[0] {
+                let cap = c::tigetstr(*p);
+                if cap != ptr::null() {
+                    let cap_key = vec::raw::from_buf_raw(cap, libc::strlen(cap) as uint).map(|el| *el as u8);
+                    keypress_trie.insert(cap_key, cap_to_key(capname));
+                }
+            }
+
+            p = ptr::offset(p, 1);
+        }
+    }
+
+    let term = @Terminal{
         // TODO would be nice to parametrize these, but Reader and Writer do
         // not yet expose a way to get the underlying fd, which makes the API
         // sucky
@@ -86,9 +107,13 @@ pub fn Terminal() -> @Terminal {
         out_fd: 1,
         out_file: io::stdout(),
 
+        keypress_trie: keypress_trie,
+
         c_terminfo: terminfo,
         tidy_termstate: termios::TidyTerminalState(0),
     };
+
+    return term;
 }
 impl Terminal {
     // ------------------------------------------------------------------------
@@ -399,6 +424,11 @@ impl Window {
         self.term.write(msg);
     }
 
+    fn attrwrite(s: &str, style: &Style) {
+        // TODO same as above
+        self.term.attrwrite(s, style);
+    }
+
     fn repaint() {
         // TODO return value
         //c::wrefresh(self.c_window);
@@ -445,12 +475,94 @@ impl Window {
     }
 
     fn read_key() -> Key {
-        // TODO don't hardcode stdin
-        let fh = io::stdin();
-
+        // Thanks to urwid for already doing much of this work in a readable
+        // manner!
         // TODO this doesn't time out, doesn't check for key sequences, etc
         // etc.  it's hilariously sad.
-        let byte = fh.read_byte();
+        // TODO should have a timeout after Esc...  et al.?
+        // TODO this could probably stand to be broken out a bit
+        let raw_byte = self.term.in_file.read_byte();
+        if raw_byte < 0 {
+            // TODO how can this actually happen?
+            fail ~"couldn't read a byte?!";
+        }
+
+        let mut byte = raw_byte as u8;
+        let mut bytes = ~[byte];
+
+        if 32 <= byte && byte <= 126 {
+            // ASCII character
+            return Character(byte as char);
+        }
+
+        // XXX urwid here checks for some specific keys: tab, enter, backspace
+
+        // XXX is this cross-terminal?
+        if 0 < byte && byte < 27 {
+            // Ctrl-x
+            // TODO no nice way to return this though, so just do the character
+            return Character(byte as char);
+        }
+        if 27 < byte && byte < 32 {
+            // Ctrl-X
+            // TODO no nice way to return this though, so just do the character
+            return Character(byte as char);
+        }
+
+        // TODO supporting other encodings would be...  nice...  but hard.
+        // what does curses do here; is this where it uses the locale?
+        let encoding = "utf8";
+        if encoding == "utf8" && byte > 127 && byte < 256 {
+            let need_more;
+            if byte & 0xe0 == 0xc0 {
+                // two-byte form
+                need_more = 1;
+            }
+            else if byte & 0xf0 == 0xe0 {
+                // three-byte form
+                need_more = 2;
+            }
+            else if byte & 0xf8 == 0xf0 {
+                // four-byte form
+                need_more = 3;
+            }
+            else {
+                fail fmt!("junk byte %?", byte);
+            }
+
+            bytes += (self.term.in_file as io::ReaderUtil).read_bytes(need_more);
+            // TODO umm this only works for utf8
+            let decoded = str::from_bytes(bytes);
+            if decoded.len() != 1 {
+                fail ~"unexpected decoded string length!";
+            }
+
+            return Character(decoded.char_at(0));
+        }
+
+        // XXX urwid has if byte > 127 && byte < 256...  but that's covered
+        // above because we are always utf8.
+
+        
+        // OK, check for cute terminal escapes
+        loop {
+            let (maybe_key, remaining_bytes) = self.term.keypress_trie.find_prefix(bytes);
+            match maybe_key {
+                option::Some(key) => {
+                    return key;
+                }
+                option::None => (),
+            }
+            // XXX right now we are discarding any leftover bytes -- but we also only read one at a time so there are never leftovers
+            // bytes = remaining_bytes;
+            // XXX i don't know a better way to decide when to give up reading a sequence?  i guess it should be time-based
+            if bytes.len() > 8 {
+                break;
+            }
+            // XXX again, why does this return an int?  can it be negative on error?
+            bytes.push(self.term.in_file.read_byte() as u8);
+        }
+
 
         return Character(byte as char);
 
@@ -511,30 +623,6 @@ impl Window {
 
     // Attributes
 
-    fn attrprint(s: &str, style: Style) {
-        // TODO this leaves state behind...  set back to normal after?
-        // TODO should probably interact nicely with background color
-        c::wattrset(self.c_window, style.c_value());
-
-        /*
-        if style.fg_color != -1 {
-            do str::as_c_str(self.term.cap_fmt1(~"setaf", style.fg_color)) |bytes| {
-                // TODO where does this think it's going ff
-                c::putp(bytes);
-            }
-        }
-        if style.bg_color != -1 {
-            do str::as_c_str(self.term.cap_fmt1(~"setab", style.bg_color)) |bytes| {
-                c::wprintw(self.c_window, bytes);
-            }
-        }
-        */
-
-        // TODO variadic
-        do str::as_c_str(s) |bytes| {
-            c::wprintw(self.c_window, bytes);
-        }
-    }
     fn restyle(num_chars: int, attrflags: int, color_index: int) {
         // NOTE: chgat() returns a c_int, but documentation indicates the value
         // is meaningless.
@@ -675,19 +763,50 @@ pub const NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color: 
 ////////////////////////////////////////////////////////////////////////////////
 // Key handling
 
+// TODO: i don't know how to handle ctrl-/alt- sequences.
+// 1. i don't know how to represent them type-wise
+// 2. i don't know how to parse them!  they aren't in termcap.
 enum SpecialKey {
     KEY_LEFT,
     KEY_RIGHT,
     KEY_UP,
     KEY_DOWN,
     KEY_ESC,
+
+    // XXX temp kludge until i have all yonder keys
+    KEY_UNKNOWN,
 }
 
 enum Key {
     Character(char),
     SpecialKey(SpecialKey),
+    FunctionKey(uint),
 }
 
+fn cap_to_key(cap: ~str) -> Key {
+    // TODO this matching would be much more efficient if it used, hurr, a
+    // trie.  but seems silly to build one only to use it a few times.
+    // TODO uh maybe this should use the happy C names
+    return match cap {
+        ~"kcuf1" => SpecialKey(KEY_RIGHT),
+        ~"kcub1" => SpecialKey(KEY_LEFT),
+        ~"kcup1" => SpecialKey(KEY_UP),
+        ~"kcud1" => SpecialKey(KEY_DOWN),
+        ~"kf1" => FunctionKey(1),
+        ~"kf2" => FunctionKey(2),
+        ~"kf3" => FunctionKey(3),
+        ~"kf4" => FunctionKey(4),
+        ~"kf5" => FunctionKey(5),
+        ~"kf6" => FunctionKey(6),
+        ~"kf7" => FunctionKey(7),
+        ~"kf8" => FunctionKey(8),
+        ~"kf9" => FunctionKey(9),
+        ~"kf10" => FunctionKey(10),
+        ~"kf11" => FunctionKey(11),
+        ~"kf12" => FunctionKey(12),
+        _ => SpecialKey(KEY_UNKNOWN),
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Misc that should probably go away

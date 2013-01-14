@@ -9,10 +9,12 @@ type TERMINAL = c_void;
 extern {
     const cur_term: *TERMINAL;
 
-    const boolnames: **c_char;
-    const numnames: **c_char;
-    const strnames: **c_char;
-    const boolcodes: **c_char;
+    // These are static arrays of unknown length, which is hard to express in
+    // Rust; fudge it here and do pointer mangling in Rust-land
+    const boolnames: [*c_char * 1];
+    const numnames: [*c_char * 1];
+    const strnames: [*c_char * 1];
+    const boolcodes: [*c_char * 1];
 
     fn setupterm(arg1: *c_char, arg2: c_int, arg3: *c_int) -> c_int;
     fn set_curterm(arg1: *TERMINAL) -> *TERMINAL;

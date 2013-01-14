@@ -11,23 +11,25 @@ use libc::c_int;
 fn main() {
     let bold = amulet::ll::Style().bold();
 
-    let window = amulet::ll::init_screen();
-    amulet::c::raw();
-    amulet::c::noecho();
+    let term = amulet::ll::Terminal();
+    do term.fullscreen |window| {
+        // XXX these have got to go
+        amulet::c::noecho();
 
-    window.print("Type any character to see it in bold\n");
+        window.write("Type any character to see it in bold\n");
 
-    let ch = window.getch();
-    // TODO this ain't quite right, yo.  function keys are distinct from
-    // characters
-    if ch == amulet::c::KEY_F(1 as c_int) as char {
-        window.print("F1 key pressed");
+        let ch = window.read_key();
+        match ch {
+            amulet::ll::FunctionKey(n) if n == 1 => {
+                window.write("F1 key pressed");
+            }
+            _ => {
+                window.write("The pressed key is ");
+                window.attrwrite(fmt!("%?", ch), &bold);
+            }
+        }
+
+        window.repaint();
+        window.pause();
     }
-    else {
-        window.print("The pressed key is ");
-        window.attrprint(#fmt("%c", ch), bold);
-    }
-
-    window.repaint();
-    window.getch();
 }
