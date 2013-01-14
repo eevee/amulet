@@ -133,7 +133,7 @@ mod imp {
         // why is this here?  what is going on?  who knows
         c_line: cc_t,               // "line discipline"
         // NOTE: 32 is the value of NCCS
-        mut c_cc: [cc_t]/32,        // control characters
+        mut c_cc: [cc_t * 32],      // control characters
         c_ispeed: speed_t,          // input speed
         c_ospeed: speed_t,          // output speed
     }
@@ -183,8 +183,8 @@ pub fn TidyTerminalState(fd: c_int) -> ~TidyTerminalState {
 
     return ~TidyTerminalState{
         c_fd: fd as c_int,
+        c_termios_cur: copy c_termios,
         c_termios_orig: c_termios,
-        c_termios_cur: c_termios,
     };
 }
 

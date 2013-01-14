@@ -2,6 +2,8 @@
 #[comment = "Rust ncurses and TUI library"];
 #[crate_type = "lib"];
 
+extern mod std;
+
 #[legacy_exports]
 pub mod c;
 // TODO unraw

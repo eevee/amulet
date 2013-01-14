@@ -35,7 +35,7 @@ type WINDOW = Struct__win_st;
 type attr_t = chtype;
 struct cchar_t {
     attr: attr_t,
-    chars: [wchar_t]/5,
+    chars: [wchar_t * 5],
 }
 type Struct_ldat = c_void;
 struct Struct__win_st {
