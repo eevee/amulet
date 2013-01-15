@@ -17,7 +17,7 @@ DEMO_TARGETS := $(DEMO_SOURCES:.rs=)
 .PHONY: demos
 demos: $(DEMO_TARGETS)
 
-demos/% :: demos/%.rs libamulet
+demos/% :: demos/%.rs amulet/.built
 	rustc -L amulet $@.rs
 
 

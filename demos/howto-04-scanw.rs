@@ -24,7 +24,7 @@ fn main() {
     // TODO bindgen doesn't give me access to LINES
     //mvprintw(LINES - 2, 0, "You Entered: %s", str);
     window.mv(rows - 2, 0);
-    window.print(#fmt("You entered: %s", buf));
+    window.print(fmt!("You entered: %s", buf));
 
     window.getch();
 }

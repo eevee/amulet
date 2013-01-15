@@ -22,7 +22,7 @@ fn main() {
     window.mv(rows / 2, (cols - str::len(mesg))/2);
     window.print(mesg);
     window.mv(rows - 2, 0);
-    window.print(#fmt("This screen has %u rows and %u columns\n", rows, cols));
+    window.print(fmt!("This screen has %u rows and %u columns\n", rows, cols));
 
     window.print("Try resizing your window (if possible) and then run this program again");
     window.repaint();

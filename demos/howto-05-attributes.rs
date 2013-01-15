@@ -54,10 +54,10 @@ fn main() {
             cur_style = bold;
 
             window.mv(row, col - 1);
-            window.attrprint(fmt!("%c%c", prev as char, ch as char), cur_style);
+            window.attrwrite(fmt!("%c%c", prev as char, ch as char), &cur_style);
         }
         else {
-            window.attrprint(fmt!("%c", ch as char), cur_style);
+            window.attrwrite(fmt!("%c", ch as char), &cur_style);
         }
 
         window.repaint();
