@@ -18,7 +18,7 @@ fn main() {
     let mut starty = (rows - height) / 2;
     let mut startx = (columns - width) / 2;
 
-    window.print("Press F1 to exit");
+    window.write("Press F1 to exit");
     window.repaint();
 
     let mut my_win = create_newwin(height, width, starty, startx);

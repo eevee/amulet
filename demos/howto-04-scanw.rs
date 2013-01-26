@@ -17,14 +17,14 @@ fn main() {
     let buf: ~str;
 
     window.mv(rows / 2, (cols - str::len(mesg)) / 2);
-    window.print(mesg);
+    window.write(mesg);
 
     buf = window.readln();
 
     // TODO bindgen doesn't give me access to LINES
     //mvprintw(LINES - 2, 0, "You Entered: %s", str);
     window.mv(rows - 2, 0);
-    window.print(fmt!("You entered: %s", buf));
+    window.write(fmt!("You entered: %s", buf));
 
     window.getch();
 }

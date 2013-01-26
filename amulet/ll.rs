@@ -391,9 +391,7 @@ impl Window {
 
     /** Returns the size of the window as (rows, columns). */
     fn size() -> (uint, uint) {
-        return (
-            c::getmaxy(self.c_window) as uint,
-            c::getmaxx(self.c_window) as uint);
+        return (self.term.height(), self.term.width());
     }
 
     /** Returns the current cursor position as (row, column). */
@@ -406,17 +404,10 @@ impl Window {
     ////// Methods
 
     fn mv(row: uint, col: uint) {
+        // TODO write to a buffer, only paint on repaint()
+        self.term.write_cap2("cup", row as int, col as int);
         // TODO return value
-        c::wmove(self.c_window, row as c_int, col as c_int);
-    }
-
-    fn print(msg: &str) {
-        // TODO return value
-        // TODO this is variadic; string template exploits abound, should use %s really
-        // TODO also should handle literal escape sequences somehow...?  strip?  escape?
-        do str::as_c_str(msg) |bytes| {
-            c::wprintw(self.c_window, bytes);
-        }
+        //c::wmove(self.c_window, row as c_int, col as c_int);
     }
 
     fn write(msg: &str) {

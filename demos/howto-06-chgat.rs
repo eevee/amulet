@@ -10,7 +10,7 @@ fn main() {
     let window = amulet::ll::init_screen();
 
     amulet::ll::define_color_pair(1, amulet::c::COLOR_CYAN, amulet::c::COLOR_BLACK);
-    window.print("A big string which I didn't care to type fully");
+    window.write("A big string which I didn't care to type fully");
 
     window.mv(0, 0);
     // First: Number of characters to update (-1 means until end of line)

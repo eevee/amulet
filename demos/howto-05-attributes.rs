@@ -43,14 +43,14 @@ fn main() {
         let (row, col) = window.position();
 
         if row == rows - 1 {
-            window.print("<-Press Any Key->");
+            window.write("<-Press Any Key->");
             window.getch();
             window.clear();
             window.mv(0, 0);
         }
 
         if prev as char == '/' && ch as char == '*' {
-            //window.print(#fmt("%c", ch as char));
+            //window.write(#fmt("%c", ch as char));
             cur_style = bold;
 
             window.mv(row, col - 1);

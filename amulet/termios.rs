@@ -38,86 +38,86 @@ mod imp {
     pub const VEOL2:    c_uint = 16;
 
     /* c_iflag bits */
-    pub const IGNBRK:   c_uint = 0000001;
-    pub const BRKINT:   c_uint = 0000002;
-    pub const IGNPAR:   c_uint = 0000004;
-    pub const PARMRK:   c_uint = 0000010;
-    pub const INPCK:    c_uint = 0000020;
-    pub const ISTRIP:   c_uint = 0000040;
-    pub const INLCR:    c_uint = 0000100;
-    pub const IGNCR:    c_uint = 0000200;
-    pub const ICRNL:    c_uint = 0000400;
-    pub const IUCLC:    c_uint = 0001000;
-    pub const IXON:     c_uint = 0002000;
-    pub const IXANY:    c_uint = 0004000;
-    pub const IXOFF:    c_uint = 0010000;
-    pub const IMAXBEL:  c_uint = 0020000;
-    pub const IUTF8:    c_uint = 0040000;
+    pub const IGNBRK:   c_uint = 0x00001;
+    pub const BRKINT:   c_uint = 0x00002;
+    pub const IGNPAR:   c_uint = 0x00004;
+    pub const PARMRK:   c_uint = 0x00008;
+    pub const INPCK:    c_uint = 0x00010;
+    pub const ISTRIP:   c_uint = 0x00020;
+    pub const INLCR:    c_uint = 0x00040;
+    pub const IGNCR:    c_uint = 0x00080;
+    pub const ICRNL:    c_uint = 0x00100;
+    pub const IUCLC:    c_uint = 0x00200;
+    pub const IXON:     c_uint = 0x00400;
+    pub const IXANY:    c_uint = 0x00800;
+    pub const IXOFF:    c_uint = 0x01000;
+    pub const IMAXBEL:  c_uint = 0x02000;
+    pub const IUTF8:    c_uint = 0x04000;
 
     /* c_oflag bits */
-    pub const OPOST:    c_uint = 0000001;
-    pub const OLCUC:    c_uint = 0000002;
-    pub const ONLCR:    c_uint = 0000004;
-    pub const OCRNL:    c_uint = 0000010;
-    pub const ONOCR:    c_uint = 0000020;
-    pub const ONLRET:   c_uint = 0000040;
-    pub const OFILL:    c_uint = 0000100;
-    pub const OFDEL:    c_uint = 0000200;
+    pub const OPOST:    c_uint = 0x00001;
+    pub const OLCUC:    c_uint = 0x00002;
+    pub const ONLCR:    c_uint = 0x00004;
+    pub const OCRNL:    c_uint = 0x00008;
+    pub const ONOCR:    c_uint = 0x00010;
+    pub const ONLRET:   c_uint = 0x00020;
+    pub const OFILL:    c_uint = 0x00040;
+    pub const OFDEL:    c_uint = 0x00080;
 
     /* c_cflag bit meaning */
-    pub const  B0:      c_uint = 0000000;  // hang up
-    pub const  B50:     c_uint = 0000001;
-    pub const  B75:     c_uint = 0000002;
-    pub const  B110:    c_uint = 0000003;
-    pub const  B134:    c_uint = 0000004;
-    pub const  B150:    c_uint = 0000005;
-    pub const  B200:    c_uint = 0000006;
-    pub const  B300:    c_uint = 0000007;
-    pub const  B600:    c_uint = 0000010;
-    pub const  B1200:   c_uint = 0000011;
-    pub const  B1800:   c_uint = 0000012;
-    pub const  B2400:   c_uint = 0000013;
-    pub const  B4800:   c_uint = 0000014;
-    pub const  B9600:   c_uint = 0000015;
-    pub const  B19200:  c_uint = 0000016;
-    pub const  B38400:  c_uint = 0000017;
-    pub const CSIZE:    c_uint = 0000060;
-    pub const   CS5:    c_uint = 0000000;
-    pub const   CS6:    c_uint = 0000020;
-    pub const   CS7:    c_uint = 0000040;
-    pub const   CS8:    c_uint = 0000060;
-    pub const CSTOPB:   c_uint = 0000100;
-    pub const CREAD:    c_uint = 0000200;
-    pub const PARENB:   c_uint = 0000400;
-    pub const PARODD:   c_uint = 0001000;
-    pub const HUPCL:    c_uint = 0002000;
-    pub const CLOCAL:   c_uint = 0004000;
-    pub const  B57600:  c_uint = 0010001;
-    pub const  B115200: c_uint = 0010002;
-    pub const  B230400: c_uint = 0010003;
-    pub const  B460800: c_uint = 0010004;
-    pub const  B500000: c_uint = 0010005;
-    pub const  B576000: c_uint = 0010006;
-    pub const  B921600: c_uint = 0010007;
-    pub const  B1000000: c_uint = 0010010;
-    pub const  B1152000: c_uint = 0010011;
-    pub const  B1500000: c_uint = 0010012;
-    pub const  B2000000: c_uint = 0010013;
-    pub const  B2500000: c_uint = 0010014;
-    pub const  B3000000: c_uint = 0010015;
-    pub const  B3500000: c_uint = 0010016;
-    pub const  B4000000: c_uint = 0010017;
+    pub const  B0:      c_uint = 0x00000;  // hang up
+    pub const  B50:     c_uint = 0x00001;
+    pub const  B75:     c_uint = 0x00002;
+    pub const  B110:    c_uint = 0x00003;
+    pub const  B134:    c_uint = 0x00004;
+    pub const  B150:    c_uint = 0x00005;
+    pub const  B200:    c_uint = 0x00006;
+    pub const  B300:    c_uint = 0x00007;
+    pub const  B600:    c_uint = 0x00008;
+    pub const  B1200:   c_uint = 0x00009;
+    pub const  B1800:   c_uint = 0x0000a;
+    pub const  B2400:   c_uint = 0x0000b;
+    pub const  B4800:   c_uint = 0x0000c;
+    pub const  B9600:   c_uint = 0x0000d;
+    pub const  B19200:  c_uint = 0x0000e;
+    pub const  B38400:  c_uint = 0x0000f;
+    pub const CSIZE:    c_uint = 0x00030;
+    pub const   CS5:    c_uint = 0x00000;
+    pub const   CS6:    c_uint = 0x00010;
+    pub const   CS7:    c_uint = 0x00020;
+    pub const   CS8:    c_uint = 0x00030;
+    pub const CSTOPB:   c_uint = 0x00040;
+    pub const CREAD:    c_uint = 0x00080;
+    pub const PARENB:   c_uint = 0x00100;
+    pub const PARODD:   c_uint = 0x00200;
+    pub const HUPCL:    c_uint = 0x00400;
+    pub const CLOCAL:   c_uint = 0x00800;
+    pub const  B57600:  c_uint = 0x01001;
+    pub const  B115200: c_uint = 0x01002;
+    pub const  B230400: c_uint = 0x01003;
+    pub const  B460800: c_uint = 0x01004;
+    pub const  B500000: c_uint = 0x01005;
+    pub const  B576000: c_uint = 0x01006;
+    pub const  B921600: c_uint = 0x01007;
+    pub const  B1000000: c_uint = 0x01008;
+    pub const  B1152000: c_uint = 0x01009;
+    pub const  B1500000: c_uint = 0x0100a;
+    pub const  B2000000: c_uint = 0x0100b;
+    pub const  B2500000: c_uint = 0x0100c;
+    pub const  B3000000: c_uint = 0x0100d;
+    pub const  B3500000: c_uint = 0x0100e;
+    pub const  B4000000: c_uint = 0x0100f;
 
     /* c_lflag bits */
-    pub const ISIG:     c_uint = 0000001;
-    pub const ICANON:   c_uint = 0000002;
-    pub const ECHO:     c_uint = 0000010;
-    pub const ECHOE:    c_uint = 0000020;
-    pub const ECHOK:    c_uint = 0000040;
-    pub const ECHONL:   c_uint = 0000100;
-    pub const NOFLSH:   c_uint = 0000200;
-    pub const TOSTOP:   c_uint = 0000400;
-    pub const IEXTEN:   c_uint = 0100000;
+    pub const ISIG:     c_uint = 0x00001;
+    pub const ICANON:   c_uint = 0x00002;
+    pub const ECHO:     c_uint = 0x00008;
+    pub const ECHOE:    c_uint = 0x00010;
+    pub const ECHOK:    c_uint = 0x00020;
+    pub const ECHONL:   c_uint = 0x00040;
+    pub const NOFLSH:   c_uint = 0x00080;
+    pub const TOSTOP:   c_uint = 0x00100;
+    pub const IEXTEN:   c_uint = 0x08000;
 
     /* tcsetattr uses these */
     pub const TCSANOW:   c_int = 0;
@@ -222,12 +222,17 @@ impl TidyTerminalState {
         );
 
         self.c_termios_cur.c_oflag &= !(
-            imp::OPOST      // turn off "impl-specific processing" -- this
-                            // includes, e.g., converting tabs to spaces
-            // TODO turning this off makes \n not work as you'd expect
+            // TODO turning these off make \n act as a literal newline with no
+            // cursor return -- not what anyone expects from \n.  should i
+            // convert \n manually, or disable every other possible output flag
+            // here?
+            //imp::OPOST      // turn off "impl-specific processing" -- this
+            //                // includes, e.g., converting tabs to spaces
             //| imp::ONLCR    // don't convert nl to cr
+            0
         );
-        self.c_termios_cur.c_oflag |= imp::ONLCR;
+        // TODO in the meantime, make sure \n works right
+        self.c_termios_cur.c_oflag |= imp::OPOST | imp::ONLCR;
 
         self.c_termios_cur.c_cflag &= !(
             imp::PARENB     // turn off parity generation/checking
