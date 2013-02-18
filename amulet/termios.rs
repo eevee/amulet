@@ -1,4 +1,4 @@
-use libc::{c_int,c_uint};
+use libc::{c_int,c_uint,c_ushort,c_void};
 
 // -----------------------------------------------------------------------------
 // Platform-specific implementations
@@ -124,6 +124,9 @@ mod imp {
     pub const TCSADRAIN: c_int = 1;
     pub const TCSAFLUSH: c_int = 2;
 
+    /* ioctls */
+    pub const TIOCGWINSZ: c_int = 0x5413;
+
 
     pub struct termios {
         mut c_iflag: tcflag_t,      // input modes
@@ -149,6 +152,30 @@ mod imp {
         c_ispeed: 0,
         c_ospeed: 0,
     };
+
+
+
+    struct winsize {
+        ws_row:     c_ushort,
+        ws_col:     c_ushort,
+        ws_xpixel:  c_ushort,  // unused
+        ws_ypixel:  c_ushort,  // unused
+    }
+
+    extern {
+        #[link_name = "ioctl"]
+        fn ioctl_p(fd: c_int, request: c_int, arg1: *c_void) -> c_int;
+    }
+
+    pub fn request_terminal_size(fd: c_int) -> (uint, uint) {
+        let size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
+
+        let res = ioctl_p(fd, TIOCGWINSZ, ptr::addr_of(&size) as *c_void);
+
+        // XXX return value is -1 on failure
+        // returns width, height
+        return (size.ws_col as uint, size.ws_row as uint);
+    }
 }
 
 // End of platform-specific implementations.

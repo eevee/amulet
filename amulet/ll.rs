@@ -120,12 +120,23 @@ impl Terminal {
     // Capability inspection
     // TODO ideally, ultimately, every useful cap will be covered here...
 
-    // TODO these should use ioctl, and cache unless WINCH, and...
+    // TODO these should:
+    // - only do the ioctl once and cache it
+    // - handle failure in ioctl
+    // - handle TIOCGSIZE instead of that other thing
+    // - handle SIGWINCH
+    // - fall back to environment
+    // - THEN fall back to termcap
     fn height() -> uint {
-        return self.numeric_cap("lines");
+        // TODO rather not dip into `imp`, but `pub use` isn't working right
+        let (_, height) = termios::imp::request_terminal_size(self.out_fd);
+        return height;
+        //return self.numeric_cap("lines");
     }
     fn width() -> uint {
-        return self.numeric_cap("cols");
+        let (width, _) = termios::imp::request_terminal_size(self.out_fd);
+        return width;
+        //return self.numeric_cap("cols");
     }
 
     // ------------------------------------------------------------------------
@@ -272,6 +283,8 @@ impl Terminal {
 
         return ~TidyTermcap{ term: self, cap: undo_cap };
     }
+
+    // TODO should capabilities just have a method apiece, like blessings?
 
 
 
