@@ -791,7 +791,7 @@ fn cap_to_key(cap: ~str) -> Key {
     return match cap {
         ~"kcuf1" => SpecialKey(KEY_RIGHT),
         ~"kcub1" => SpecialKey(KEY_LEFT),
-        ~"kcup1" => SpecialKey(KEY_UP),
+        ~"kcuu1" => SpecialKey(KEY_UP),
         ~"kcud1" => SpecialKey(KEY_DOWN),
         ~"kf1" => FunctionKey(1),
         ~"kf2" => FunctionKey(2),
