@@ -22,8 +22,9 @@ extern {
 struct TidyTermcap {
     term: &Terminal,
     cap: &str,
-
-    drop {
+}
+impl TidyTermcap: Drop {
+    fn finalize(&self) {
         self.term.write_cap(self.cap);
     }
 }
@@ -38,18 +39,9 @@ struct Terminal {
     keypress_trie: @Trie<u8, Key>,
 
     priv c_terminfo: *c::TERMINAL,
-    priv tidy_termstate: ~termios::TidyTerminalState,
+    priv tidy_termstate: termios::TidyTerminalState,
 
     //term_type: ~str,
-
-    drop {
-        // TODO any C freeage needed here?
-
-        // Undo the setup inflicted on the terminal
-        c::nl();
-        //c::echo();
-        c::nocbreak();
-    }
 }
 pub fn Terminal() -> @Terminal {
     let error_code: c_int = 0;
@@ -114,6 +106,11 @@ pub fn Terminal() -> @Terminal {
     };
 
     return term;
+}
+impl Terminal: Drop {
+    fn finalize(&self) {
+        self.tidy_termstate.restore();
+    }
 }
 impl Terminal {
     // ------------------------------------------------------------------------
@@ -278,10 +275,10 @@ impl Terminal {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    fn write_tidy_cap(&self, do_cap: &str, undo_cap: &self/str) -> ~TidyTermcap/&self {
+    fn write_tidy_cap(&self, do_cap: &str, undo_cap: &self/str) -> TidyTermcap/&self {
         self.write_cap(do_cap);
 
-        return ~TidyTermcap{ term: self, cap: undo_cap };
+        return TidyTermcap{ term: self, cap: undo_cap };
     }
 
     // TODO should capabilities just have a method apiece, like blessings?
@@ -346,6 +343,8 @@ impl Terminal {
         // TODO so, we need to switch to raw mode *some*where.  is this an
         // appropriate place?  i assume if you have a fullscreen app then you
         // want to get keypresses.
+        // TODO seems weird to create a second one of these.  stick a
+        // .checkpoint() on the one attached to the terminal?
         let tidy_termstate = termios::TidyTerminalState(self.in_fd);
         tidy_termstate.raw();
 
@@ -353,12 +352,42 @@ impl Terminal {
             c_window: ptr::null(),  // TODO obviously
 
             term: self,
-            x: 0,
-            y: 0,
+            row: 0,
+            col: 0,
             width: self.width(),
             height: self.height(),
+
+            tidyables: ~[],
         };
         cb(win);
+    }
+
+    // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
+    // responsibility!  If you don't do it in a drop, you risk leaving the
+    // terminal in a fucked-up state on early exit!
+    fn enter_fullscreen(@self) -> @Window {
+        // Same stuff as above.  Enter fullscreen; enter keypad mode; clear the
+        // screen.
+        let tidy_cup = self.write_tidy_cap("smcup", "rmcup");
+        let tidy_kx = self.write_tidy_cap("smkx", "rmkx");
+        self.write_cap("clear");
+
+        // TODO intrflush, as above...?
+
+        let tidy_termstate = termios::TidyTerminalState(self.in_fd);
+        tidy_termstate.raw();
+
+        return @Window{
+            c_window: ptr::null(),  // TODO obviously
+
+            term: self,
+            row: 0,
+            col: 0,
+            width: self.width(),
+            height: self.height(),
+
+            tidyables: ~[tidy_termstate as Drop, tidy_kx as Drop, tidy_cup as Drop],
+        };
     }
 }
 
@@ -367,36 +396,26 @@ struct Window {
     c_window: *c::WINDOW,
     term: @Terminal,
 
-    x: uint,
-    y: uint,
+    row: uint,
+    col: uint,
     // TODO: what happens to width and height on resize?  default is obviously
     // "nothing", but seems it would be nice to support default behavior like
     // preserving bottom/right margins or scaling proportionally
     width: uint,
     height: uint,
 
-    drop {
-        // TODO with multiple windows, need a Rust-level reference to the parent
-
-        // TODO return value, though fuck if i know how this could ever fail
-        c::endwin();
-
-        // TODO do i need to do this with stdscr?  does it hurt?
-        c::delwin(self.c_window);
-    }
-}
-// TODO this probably doesn't need to be here quite like this
-fn init_window(c_window: *c::WINDOW) -> @Window {
-    // Something, something.  TODO explain
-    c::intrflush(c_window, 0);
-
-    // Always enable keypad (function keys, arrow keys, etc.)
-    // TODO what are multiple screens?
-    c::keypad(c_window, 1);
-
-    let term = Terminal();
-
-    return @Window{ c_window: c_window, term: term,   x: 0, y: 0, width: 0, height: 0 };
+    // TODO still not super sure about whether this is a good idea; with an
+    // @-pointer, it's never quite clear when the window will go away...  but
+    // for now I don't have a better idea for dealing with fullscreen outside a
+    // `do` reliably.  ask #rust?
+    // TODO actually I'd like to just have a set of termcaps that need to be
+    // reversed when the /terminal/ goes away, and add/remove those as
+    // appropriate.  or maybe just a list of flags would be faster.  good idea?
+    // how does that affect termstate?  i mean, windows that are fullscreen
+    // also want to reverse termstate (since they activate raw) as well as
+    // termcaps (which do fullscreen), so.  idk i don't like using scope guards
+    // everywhere for all this.
+    priv tidyables: ~[Drop],
 }
 
 impl Window {
@@ -414,11 +433,34 @@ impl Window {
             c::getcurx(self.c_window) as uint);
     }
 
-    ////// Methods
+    ////// Structural methods
+
+    // TODO how does the parent/child relationship work here?  does the child
+    // know the parent?  vice versa?  what happens when you destroy one?  how
+    // does this relate to fullscreen?
+    fn create_window(height: uint, width: uint, row: uint, col: uint) -> @Window {
+        let actual_height = if height == 0 { self.height } else { height };
+        let actual_width = if width == 0 { self.width } else { width };
+
+        return @Window{
+            c_window: ptr::null(),  // TODO obviously
+
+            term: self.term,
+            row: row,
+            col: col,
+            width: actual_width,
+            height: actual_height,
+
+            tidyables: ~[],
+        };
+    }
+
+
+    ////// Drawing methods
 
     fn mv(row: uint, col: uint) {
         // TODO write to a buffer, only paint on repaint()
-        self.term.write_cap2("cup", row as int, col as int);
+        self.term.write_cap2("cup", (self.row + row) as int, (self.col + col) as int);
         // TODO return value
         //c::wmove(self.c_window, row as c_int, col as c_int);
     }
@@ -569,32 +611,6 @@ impl Window {
 
 
         return Character(byte as char);
-
-
-        // TODO 
-        // TODO this name sucks
-        let ch: c::wint_t = 0;
-        let res = c::wget_wch(self.c_window, ptr::addr_of(&ch));
-        if res == c::OK {
-            return Character(ch as char);
-        }
-        else if res == c::KEY_CODE_YES {
-            return SpecialKey(
-                if ch == c::KEY_UP { KEY_UP }
-                else if ch == c::KEY_DOWN { KEY_DOWN }
-                else if ch == c::KEY_LEFT { KEY_LEFT }
-                else if ch == c::KEY_RIGHT { KEY_RIGHT }
-                else { fail; }
-            );
-        }
-        else if res == c::ERR {
-            fail;
-        }
-        else {
-            // TODO wat
-            fail;
-        }
-        // TODO what if you get WEOF...?
     }
 
     /** Blocks until a key is pressed.
@@ -665,25 +681,6 @@ impl Window {
         // TODO this belongs to the terminal, not a window
         c::curs_set(0);
     }
-}
-
-pub fn init_screen() -> @Window {
-    // TODO not sure all this stuff should be initialized /here/ really
-    // TODO perhaps ensure this is only called once?  or make it a context
-    // manager ish thing?
-
-    // TODO this is not very cross-platform, but LC_ALL is a macro  :|
-    // setlocale(LC_ALL, "") reads the locale from the environment
-    let empty_string: c_char = 0;
-    setlocale(6, ptr::addr_of(&empty_string));
-
-    let c_window = c::initscr();
-    if c_window == ptr::null() {
-        // Should only fail due to memory pressure
-        fail;
-    }
-
-    return init_window(c_window);
 }
 
 
@@ -825,17 +822,6 @@ pub fn screen_size() -> (uint, uint) {
 pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
     // TODO return value
     c::init_pair(color_index as c_short, fg, bg);
-}
-
-pub fn new_window(height: uint, width: uint, starty: uint, startx: uint) -> @Window {
-    let c_window = c::newwin(height as c_int, width as c_int, starty as c_int, startx as c_int);
-
-    if c_window == ptr::null() {
-        // TODO?
-        fail;
-    }
-
-    return init_window(c_window);
 }
 
 

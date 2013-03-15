@@ -7,7 +7,7 @@
 extern mod amulet;
 
 fn main() {
-    let window = amulet::ll::init_screen();
+    let window = amulet::ll::Terminal().enter_fullscreen();
 
     amulet::ll::define_color_pair(1, amulet::c::COLOR_CYAN, amulet::c::COLOR_BLACK);
     window.write("A big string which I didn't care to type fully");
@@ -19,5 +19,5 @@ fn main() {
     window.restyle(-1, amulet::c::A_BLINK as int, 1);
 
     window.repaint();
-    window.getch();
+    window.pause();
 }

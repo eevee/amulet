@@ -196,19 +196,21 @@ pub struct TidyTerminalState {
     priv c_fd: c_int,
     priv mut c_termios_orig: imp::termios,
     priv mut c_termios_cur: imp::termios,
+}
 
-    drop {
+impl TidyTerminalState: Drop {
+    fn finalize(&self) {
         self.restore();
     }
 }
 
-pub fn TidyTerminalState(fd: c_int) -> ~TidyTerminalState {
+pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
     let c_termios = copy imp::BLANK_TERMIOS;
 
     // TODO this has a retval, but...  eh...
     tcgetattr(fd as c_int, ptr::addr_of(&c_termios));
 
-    return ~TidyTerminalState{
+    return TidyTerminalState{
         c_fd: fd as c_int,
         c_termios_cur: copy c_termios,
         c_termios_orig: c_termios,
