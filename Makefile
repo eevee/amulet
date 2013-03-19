@@ -1,3 +1,5 @@
+RUSTC := rustc
+
 .PHONY: all
 all: libamulet demos
 
@@ -7,7 +9,7 @@ libamulet: amulet/.built
 # need to use a dummy file because rustc spits out .so files with hashed and
 # thus basically useless names
 amulet/.built: amulet/amulet.rc $(wildcard amulet/*.rs)
-	rustc amulet/amulet.rc \
+	$(RUSTC) amulet/amulet.rc \
 	    && touch amulet/.built
 
 
@@ -18,7 +20,7 @@ DEMO_TARGETS := $(DEMO_SOURCES:.rs=)
 demos: $(DEMO_TARGETS)
 
 demos/% :: demos/%.rs amulet/.built
-	rustc -L amulet $@.rs
+	$(RUSTC) -L amulet $@.rs
 
 
 .PHONY: clean
