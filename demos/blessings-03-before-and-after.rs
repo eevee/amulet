@@ -11,6 +11,6 @@ fn main() {
 
     do term.at(0, term.height() - 1) {
         term.write("This is ");
-        term.attrwrite("pretty!", &amulet::ll::Style().underline());
+        term.attrwrite("pretty!", amulet::ll::Style().underline());
     }
 }

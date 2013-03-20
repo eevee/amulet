@@ -6,8 +6,6 @@
 
 extern mod amulet;
 
-use libc::c_int;
-
 fn main() {
     let bold = amulet::ll::Style().bold();
 
@@ -25,7 +23,7 @@ fn main() {
             }
             _ => {
                 window.write("The pressed key is ");
-                window.attrwrite(fmt!("%?", ch), &bold);
+                window.attrwrite(fmt!("%?", ch), bold);
             }
         }
 
