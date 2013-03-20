@@ -6,8 +6,6 @@
 
 extern mod amulet;
 
-use libc::c_int;
-
 fn main() {
     let mesg = "Just a string";
 

@@ -1,5 +1,3 @@
-use libc::{c_int,c_uint,c_ushort,c_void};
-
 // -----------------------------------------------------------------------------
 // Platform-specific implementations
 
@@ -11,6 +9,8 @@ use libc::{c_int,c_uint,c_ushort,c_void};
 
 #[cfg(target_os="linux")]
 mod imp {
+    use core::libc::{c_int,c_uint,c_ushort,c_void};
+
     const NCCS: int = 32;
     type cc_t = c_int;
     type tcflag_t = c_uint;
@@ -129,16 +129,16 @@ mod imp {
 
 
     pub struct termios {
-        mut c_iflag: tcflag_t,      // input modes
-        mut c_oflag: tcflag_t,      // output modes
-        mut c_cflag: tcflag_t,      // control modes
-        mut c_lflag: tcflag_t,      // local modes
+        c_iflag: tcflag_t,      // input modes
+        c_oflag: tcflag_t,      // output modes
+        c_cflag: tcflag_t,      // control modes
+        c_lflag: tcflag_t,      // local modes
         // why is this here?  what is going on?  who knows
-        c_line: cc_t,               // "line discipline"
+        c_line: cc_t,           // "line discipline"
         // NOTE: 32 is the value of NCCS
-        mut c_cc: [cc_t * 32],      // control characters
-        c_ispeed: speed_t,          // input speed
-        c_ospeed: speed_t,          // output speed
+        c_cc: [cc_t * 32],      // control characters
+        c_ispeed: speed_t,      // input speed
+        c_ospeed: speed_t,      // output speed
     }
 
     // Need this to be able to create blank structs on the stack
@@ -170,13 +170,15 @@ mod imp {
     pub fn request_terminal_size(fd: c_int) -> (uint, uint) {
         let size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
 
-        let res = ioctl_p(fd, TIOCGWINSZ, ptr::addr_of(&size) as *c_void);
+        let res = unsafe { ioctl_p(fd, TIOCGWINSZ, ptr::addr_of(&size) as *c_void) };
 
         // XXX return value is -1 on failure
         // returns width, height
         return (size.ws_col as uint, size.ws_row as uint);
     }
 }
+
+use core::libc::{c_int,c_uint,c_ushort,c_void};
 
 // End of platform-specific implementations.
 // -----------------------------------------------------------------------------
@@ -194,11 +196,13 @@ extern {
   */
 pub struct TidyTerminalState {
     priv c_fd: c_int,
-    priv mut c_termios_orig: imp::termios,
-    priv mut c_termios_cur: imp::termios,
+    priv c_termios_orig: imp::termios,
+    priv c_termios_cur: imp::termios,
+}
 
-    drop {
-        self.restore();
+impl Drop for TidyTerminalState {
+    fn finalize (&self) {
+        self.restore_term();
     }
 }
 
@@ -206,7 +210,9 @@ pub fn TidyTerminalState(fd: c_int) -> ~TidyTerminalState {
     let c_termios = copy imp::BLANK_TERMIOS;
 
     // TODO this has a retval, but...  eh...
-    tcgetattr(fd as c_int, ptr::addr_of(&c_termios));
+    unsafe {
+        tcgetattr(fd as c_int, ptr::addr_of(&c_termios));
+    }
 
     return ~TidyTerminalState{
         c_fd: fd as c_int,
@@ -217,9 +223,15 @@ pub fn TidyTerminalState(fd: c_int) -> ~TidyTerminalState {
 
 // TODO: i want this impl only for ~T but that makes the drop not work
 impl TidyTerminalState {
+    fn restore_term (&self) {
+        unsafe {
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&self.c_termios_orig));
+        }
+    }
+
     /** Explicitly restore the terminal to its pristine state. */
-    fn restore() {
-        tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&self.c_termios_orig));
+    fn restore(&mut self) {
+        self.restore_term();
         self.c_termios_cur = copy self.c_termios_orig;
     }
 
@@ -236,7 +248,7 @@ impl TidyTerminalState {
       * In raw mode, absolutely every keypress is passed along to the application
       * untouched.  This means, for example, that ^C doesn't send a SIGINT.
       */
-    fn raw() {
+    pub fn raw(&mut self) {
         self.c_termios_cur.c_iflag &= !(
             imp::IXON       // ignore XON/XOFF, i.e. ^S ^Q
             | imp::ISTRIP   // don't strip the 8th bit (?!)
@@ -279,12 +291,15 @@ impl TidyTerminalState {
             | imp::ECHO     // turn off local echo
         );
 
-        // TCSAFLUSH: make the changes once all output thusfar has been sent, and
-        // clear the input buffer
-        // TODO this returns something, but even success is hokey, so what is there
-        // to do about it
-        // TODO do i want this in a separate 'commit()' method?  for chaining etc?
-        tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&self.c_termios_cur));
+        unsafe {
+            // TCSAFLUSH: make the changes once all output thusfar has been
+            // sent, and clear the input buffer
+            // TODO this returns something, but even success is hokey, so what
+            // is there to do about it
+            // TODO do i want this in a separate 'commit()' method?  for
+            // chaining etc?
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&self.c_termios_cur));
+        }
     }
 }
 
