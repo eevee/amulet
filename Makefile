@@ -26,4 +26,5 @@ demos/% :: demos/%.rs amulet/.built
 .PHONY: clean
 clean:
 	rm -f amulet/libamulet*.so
+	rm -f amulet/.built
 	rm -f $(DEMO_TARGETS)
