@@ -2,9 +2,8 @@
 
 extern mod std;
 
-use libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t};
-
-use std::map::HashMap;
+use core::libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t,wchar_t};
+use core::io::ReaderUtil;
 
 use c;
 use termios;
@@ -32,9 +31,9 @@ impl TidyTermcap: Drop {
 
 struct Terminal {
     in_fd: c_int,
-    in_file: io::Reader,
+    in_file: @io::Reader,
     out_fd: c_int,
-    out_file: io::Writer,
+    out_file: @io::Writer,
 
     keypress_trie: @Trie<u8, Key>,
 
@@ -43,6 +42,7 @@ struct Terminal {
 
     //term_type: ~str,
 }
+
 pub fn Terminal() -> @Terminal {
     let error_code: c_int = 0;
     // NULL first arg means read TERM from env (TODO).
@@ -50,21 +50,23 @@ pub fn Terminal() -> @Terminal {
     // an error pointer.
     // third arg is a var to stick the error code in.
     // TODO allegedly setupterm doesn't work on BSD?
-    let res = c::setupterm(ptr::null(), -1, ptr::addr_of(&error_code));
+    unsafe {
+        let res = c::setupterm(ptr::null(), -1, ptr::addr_of(&error_code));
 
-    if res != c::OK {
-        if error_code == -1 {
-            fail ~"Couldn't find terminfo database";
-        }
-        else if error_code == 0 {
-            fail ~"Couldn't identify terminal";
-        }
-        else if error_code == 1 {
-            // The manual puts this as "terminal is hard-copy" but come on.
-            fail ~"Terminal appears to be made of paper";
-        }
-        else {
-            fail ~"Something is totally fucked";
+        if res != c::OK {
+            if error_code == -1 {
+                fail ~"Couldn't find terminfo database";
+            }
+            else if error_code == 0 {
+                fail ~"Couldn't identify terminal";
+            }
+            else if error_code == 1 {
+                // The manual puts this as "terminal is hard-copy" but come on.
+                fail ~"Terminal appears to be made of paper";
+            }
+            else {
+                fail ~"Something is totally fucked";
+            }
         }
     }
 
@@ -124,13 +126,13 @@ impl Terminal {
     // - handle SIGWINCH
     // - fall back to environment
     // - THEN fall back to termcap
-    fn height() -> uint {
+    pub fn height(&self) -> uint {
         // TODO rather not dip into `imp`, but `pub use` isn't working right
         let (_, height) = termios::imp::request_terminal_size(self.out_fd);
         return height;
         //return self.numeric_cap("lines");
     }
-    fn width() -> uint {
+    pub fn width(&self) -> uint {
         let (width, _) = termios::imp::request_terminal_size(self.out_fd);
         return width;
         //return self.numeric_cap("cols");
@@ -139,67 +141,75 @@ impl Terminal {
     // ------------------------------------------------------------------------
     // Very-low-level capability inspection
 
-    fn flag_cap(name: &str) -> bool {
-        c::set_curterm(self.c_terminfo);
+    fn flag_cap(&self, name: &str) -> bool {
+        unsafe {
+            c::set_curterm(self.c_terminfo);
 
-        let mut value = 0;
-        do str::as_c_str(name) |bytes| {
-            value = c::tigetflag(bytes);
+            let mut value = 0;
+            do str::as_c_str(name) |bytes| {
+                value = c::tigetflag(bytes);
+            }
+
+            if value == -1 {
+                // wrong type
+                fail ~"wrong type";
+            }
+
+            // Otherwise, is 0 or 1
+            return value as bool;
         }
-
-        if value == -1 {
-            // wrong type
-            fail;
-        }
-
-        // Otherwise, is 0 or 1
-        return value as bool;
     }
 
-    fn numeric_cap(name: &str) -> uint {
-        c::set_curterm(self.c_terminfo);
+    fn numeric_cap(&self, name: &str) -> uint {
+        unsafe {
+            c::set_curterm(self.c_terminfo);
 
-        let mut value = -1;
-        do str::as_c_str(name) |bytes| {
-            value = c::tigetnum(bytes);
-        }
+            let mut value = -1;
+            do str::as_c_str(name) |bytes| {
+                value = c::tigetnum(bytes);
+            }
 
-        if value == -2 {
-            // wrong type
-            fail;
-        }
-        else if value == -1 {
-            // missing; should be None
-            fail;
-        }
+            if value == -2 {
+                // wrong type
+                fail ~"wrong type";
+            }
+            else if value == -1 {
+                // missing; should be None
+                fail ~"missing; should be None";
+            }
 
-        return value as uint;
+            return value as uint;
+        }
     }
 
-    fn _string_cap_cstr(name: &str) -> *c_char unsafe {
-        c::set_curterm(self.c_terminfo);
+    fn _string_cap_cstr(&self, name: &str) -> *c_char {
+        unsafe {
+            c::set_curterm(self.c_terminfo);
 
-        let mut value = ptr::null();
-        do str::as_c_str(name) |bytes| {
-            value = c::tigetstr(bytes);
-        }
+            let mut value = ptr::null();
+            do str::as_c_str(name) |bytes| {
+                value = c::tigetstr(bytes);
+            }
 
-        if value == ptr::null() {
-            // missing; should be None really
-            fail;
-        }
-        else if value == cast::transmute(-1) {
-            // wrong type
-            fail;
-        }
+            if value == ptr::null() {
+                // missing; should be None really
+                fail ~"missing; should be None really";
+            }
+            else if value == cast::transmute(-1) {
+                // wrong type
+                fail ~"wrong type";
+            }
 
-        return value;
+            return value;
+        }
     }
 
-    fn string_cap(name: &str) -> ~str unsafe {
+    fn string_cap(&self, name: &str) -> ~str {
         let value = self._string_cap_cstr(name);
 
-        return str::raw::from_c_str(value);
+        unsafe {
+            return str::raw::from_c_str(value);
+        }
     }
 
     // TODO i am not really liking the string capability handling anywhere in
@@ -216,62 +226,64 @@ impl Terminal {
      * missing arguments become zero.  No capability requires more than 9
      * arguments.
      */
-    fn format_cap(name: &str, args: &[int]) -> ~str {
-        c::set_curterm(self.c_terminfo);
+    fn format_cap(&self, name: &str, args: &[int]) -> ~str {
+        unsafe {
+            c::set_curterm(self.c_terminfo);
 
-        let template = self._string_cap_cstr(name);
-        let padded_args = args.to_vec() + [0, .. 8];
-        let formatted = c::tparm(
-            template,
-            padded_args[0] as c_long,
-            padded_args[1] as c_long,
-            padded_args[2] as c_long,
-            padded_args[3] as c_long,
-            padded_args[4] as c_long,
-            padded_args[5] as c_long,
-            padded_args[6] as c_long,
-            padded_args[7] as c_long,
-            padded_args[8] as c_long
-        );
+            let template = self._string_cap_cstr(name);
+            let padded_args = args.to_vec() + [0, .. 8];
+            let formatted = c::tparm(
+                template,
+                padded_args[0] as c_long,
+                padded_args[1] as c_long,
+                padded_args[2] as c_long,
+                padded_args[3] as c_long,
+                padded_args[4] as c_long,
+                padded_args[5] as c_long,
+                padded_args[6] as c_long,
+                padded_args[7] as c_long,
+                padded_args[8] as c_long
+            );
 
-        let rv = unsafe { str::raw::from_c_str(formatted) };
-
-        return rv;
+            return str::raw::from_c_str(formatted);
+        }
     }
 
-    fn _write_capx(name: &str,
+    fn _write_capx(&self, name: &str,
             arg1: c_long, arg2: c_long, arg3: c_long,
             arg4: c_long, arg5: c_long, arg6: c_long,
             arg7: c_long, arg8: c_long, arg9: c_long)
     {
-        c::set_curterm(self.c_terminfo);
+        unsafe {
+            c::set_curterm(self.c_terminfo);
 
-        let template = self._string_cap_cstr(name);
+            let template = self._string_cap_cstr(name);
 
-        let formatted = c::tparm(
-            template, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+            let formatted = c::tparm(
+                template, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 
-        // TODO we are supposed to use curses's tputs(3) to print formatted
-        // capabilities, because they sometimes contain "padding" of the form
-        // $<5>.  alas, tputs always prints to stdout!  but we don't yet allow
-        // passing in a custom fd so i guess that's okay.  would be nice to
-        // reimplement this in Rust code someday though.
-        c::putp(formatted);
+            // TODO we are supposed to use curses's tputs(3) to print formatted
+            // capabilities, because they sometimes contain "padding" of the
+            // form $<5>.  alas, tputs always prints to stdout!  but we don't
+            // yet allow passing in a custom fd so i guess that's okay.  would
+            // be nice to reimplement this in Rust code someday though.
+            c::putp(formatted);
 
-        // TODO another reason dipping into C sucks: we have to manually flush
-        // its buffer every time we do so.
-        libc::fflush(stdout);
+            // TODO another reason dipping into C sucks: we have to manually
+            // flush its buffer every time we do so.
+            libc::fflush(stdout);
+        }
     }
 
     // TODO seems it would make sense to cache non-formatted capabilities (as
     // well as numeric/flag ones), which i think blessings does
-    fn write_cap(cap_name: &str) {
+    fn write_cap(&self, cap_name: &str) {
         // If we're calling this function then this capability really shouldn't
         // take any arguments, but someone might have screwed up, or it may
         // have an escaped % or something.  Best do the whole formatting thing.
         self._write_capx(cap_name, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
-    fn write_cap2(cap_name: &str, arg1: int, arg2: int) {
+    fn write_cap2(&self, cap_name: &str, arg1: int, arg2: int) {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
@@ -287,14 +299,14 @@ impl Terminal {
 
     // Output
 
-    fn write(s: &str) {
+    pub fn write(&self, s: &str) {
         io::stdout().flush();
         // TODO well.  should be a bit more flexible, i guess.
         io::print(s);
         io::stdout().flush();
     }
 
-    fn attrwrite(s: &str, style: &Style) {
+    pub fn attrwrite(&self, s: &str, style: &Style) {
         // TODO try to cut down on the amount of back-and-forth between c
         // strings and rust strings all up in here
         if style.is_underline {
@@ -312,7 +324,7 @@ impl Terminal {
 
 
     // Some stuff
-    fn at(x: uint, y: uint, cb: &fn()) unsafe {
+    pub fn at(&self, x: uint, y: uint, cb: &fn()) {
         self.write_cap("sc");  // save cursor
         // TODO check for existence of cup
         self.write_cap2("cup", y as int, x as int);
@@ -328,7 +340,7 @@ impl Terminal {
     // local to this function?  (unique would also prevent its escape from
     // here.)  really really REALLY sucks that we can't let the caller decide
     // easily.
-    fn fullscreen(@self, cb: &fn(@Window)) {
+    pub fn fullscreen(@self, cb: &fn(@Window)) {
         // Enter fullscreen
         let _tidy_cup = self.write_tidy_cap("smcup", "rmcup");
 
@@ -422,15 +434,17 @@ impl Window {
     ////// Properties
 
     /** Returns the size of the window as (rows, columns). */
-    fn size() -> (uint, uint) {
+    pub fn size(&self) -> (uint, uint) {
         return (self.term.height(), self.term.width());
     }
 
     /** Returns the current cursor position as (row, column). */
-    fn position() -> (uint, uint) {
-        return (
-            c::getcury(self.c_window) as uint,
-            c::getcurx(self.c_window) as uint);
+    pub fn position(&self) -> (uint, uint) {
+        unsafe {
+            return (
+                c::getcury(self.c_window) as uint,
+                c::getcurx(self.c_window) as uint);
+        }
     }
 
     ////// Structural methods
@@ -458,24 +472,24 @@ impl Window {
 
     ////// Drawing methods
 
-    fn mv(row: uint, col: uint) {
+    pub fn mv(&self, row: uint, col: uint) {
         // TODO write to a buffer, only paint on repaint()
         self.term.write_cap2("cup", (self.row + row) as int, (self.col + col) as int);
         // TODO return value
         //c::wmove(self.c_window, row as c_int, col as c_int);
     }
 
-    fn write(msg: &str) {
+    pub fn write(&self, msg: &str) {
         // TODO write to a buffer, only paint on repaint()
         self.term.write(msg);
     }
 
-    fn attrwrite(s: &str, style: &Style) {
+    pub fn attrwrite(&self, s: &str, style: &Style) {
         // TODO same as above
         self.term.attrwrite(s, style);
     }
 
-    fn repaint() {
+    pub fn repaint(&self) {
         // TODO return value
         //c::wrefresh(self.c_window);
 
@@ -484,7 +498,7 @@ impl Window {
         io::stdout().flush();
     }
 
-    fn clear() {
+    pub fn clear(&self) {
         // TODO only touch in-memory screen and update on repaint
         // TODO this only works for the root window with no child windows; cute
         // optimization but not reliable in general.  also, moves the cursor,
@@ -498,10 +512,10 @@ impl Window {
 
     // Input
 
-    fn getch() -> char {
+    pub fn getch(&self) -> char {
         // TODO this name sucks
         let ch: c::wint_t = 0;
-        let res = c::wget_wch(self.c_window, ptr::addr_of(&ch));
+        let res = unsafe { c::wget_wch(self.c_window, ptr::addr_of(&ch)) };
         if res == c::OK {
             return ch as char;
         }
@@ -511,16 +525,16 @@ impl Window {
             return ch as char;
         }
         else if res == c::ERR {
-            fail;
+            fail ~"ERR";
         }
         else {
             // TODO wat
-            fail;
+            fail ~"wat";
         }
         // TODO what if you get WEOF...?
     }
 
-    fn read_key() -> Key {
+    pub fn read_key(&self) -> Key {
         // Thanks to urwid for already doing much of this work in a readable
         // manner!
         // TODO this doesn't time out, doesn't check for key sequences, etc
@@ -576,7 +590,7 @@ impl Window {
                 fail fmt!("junk byte %?", byte);
             }
 
-            bytes += (self.term.in_file as io::ReaderUtil).read_bytes(need_more);
+            bytes += self.term.in_file.read_bytes(need_more);
             // TODO umm this only works for utf8
             let decoded = str::from_bytes(bytes);
             if decoded.len() != 1 {
@@ -618,57 +632,65 @@ impl Window {
      * This is identical to `read_key()`, except it returns nothing and reads
      * a little better if you don't care which key was pressed.
      */
-    fn pause() {
+    pub fn pause(&self) {
         self.read_key();
     }
 
 
-    fn readln() -> ~str unsafe {
+    pub fn readln(&self) -> ~str {
         // TODO what should maximum buffer length be?
         // TODO or perhaps i should reimplement the getnstr function myself with getch.
         const buflen: uint = 80;
-        let buf = libc::malloc(buflen * sys::size_of::<c::wint_t>() as size_t)
-            as *c::wint_t;
-        let res = c::wgetn_wstr(self.c_window, buf, buflen as c_int);
+        unsafe {
+            let buf = libc::malloc(buflen * sys::size_of::<c::wint_t>() as size_t)
+                as *c::wint_t;
+            let res = c::wgetn_wstr(self.c_window, buf, buflen as c_int);
 
-        if res != c::OK {
-            fail;
+            if res != c::OK {
+                fail ~"not ok";
+            }
+
+            let vec = do vec::from_buf(buf, buflen).map |ch| { *ch as char };
+            libc::free(buf as *c_void);
+
+            return str::from_chars(vec);
         }
-
-        let vec = do vec::from_buf(buf, buflen).map |ch| { *ch as char };
-        libc::free(buf as *c_void);
-
-        return str::from_chars(vec);
     }
 
     // Attributes
 
-    fn restyle(num_chars: int, attrflags: int, color_index: int) {
-        // NOTE: chgat() returns a c_int, but documentation indicates the value
-        // is meaningless.
-        c::chgat(num_chars as c_int, attrflags as c::attr_t, color_index as c_short, ptr::null());
+    pub fn restyle(&self, num_chars: int, attrflags: int, color_index: int) {
+        unsafe {
+            // NOTE: chgat() returns a c_int, but documentation indicates the
+            // value is meaningless.
+            c::chgat(num_chars as c_int, attrflags as c::attr_t, color_index as c_short, ptr::null());
+        }
     }
 
 
     // Drawing
 
-    fn set_box(vert: char, horiz: char) {
-        // TODO return value
-        c::box_set(self.c_window, ptr::addr_of(&__char_to_cchar_t(vert)), ptr::addr_of(&__char_to_cchar_t(horiz)));
+    pub fn set_box(&self, vert: char, horiz: char) {
+        unsafe {
+            // TODO return value
+            c::box_set(self.c_window, ptr::addr_of(&__char_to_cchar_t(vert)), ptr::addr_of(&__char_to_cchar_t(horiz)));
+        }
     }
 
-    fn set_border(l: char, r: char, t: char, b: char, tl: char, tr: char, bl: char, br: char) {
-        // TODO return value
-        c::wborder_set(self.c_window,
-            ptr::addr_of(&__char_to_cchar_t(l)),
-            ptr::addr_of(&__char_to_cchar_t(r)),
-            ptr::addr_of(&__char_to_cchar_t(t)),
-            ptr::addr_of(&__char_to_cchar_t(b)),
-            ptr::addr_of(&__char_to_cchar_t(tl)),
-            ptr::addr_of(&__char_to_cchar_t(tr)),
-            ptr::addr_of(&__char_to_cchar_t(bl)),
-            ptr::addr_of(&__char_to_cchar_t(br))
-        );
+    pub fn set_border(&self, l: char, r: char, t: char, b: char, tl: char, tr: char, bl: char, br: char) {
+        unsafe {
+            // TODO return value
+            c::wborder_set(self.c_window,
+                ptr::addr_of(&__char_to_cchar_t(l)),
+                ptr::addr_of(&__char_to_cchar_t(r)),
+                ptr::addr_of(&__char_to_cchar_t(t)),
+                ptr::addr_of(&__char_to_cchar_t(b)),
+                ptr::addr_of(&__char_to_cchar_t(tl)),
+                ptr::addr_of(&__char_to_cchar_t(tr)),
+                ptr::addr_of(&__char_to_cchar_t(bl)),
+                ptr::addr_of(&__char_to_cchar_t(br))
+            );
+        }
     }
 
 
@@ -676,10 +698,12 @@ impl Window {
 
     // TODO flesh this out.  apparently '2' for 'very visible' is also
     // supported?
-    fn hide_cursor() {
-        // TODO return value
-        // TODO this belongs to the terminal, not a window
-        c::curs_set(0);
+    fn hide_cursor(&self) {
+        unsafe {
+            // TODO return value
+            // TODO this belongs to the terminal, not a window
+            c::curs_set(0);
+        }
     }
 }
 
@@ -703,12 +727,12 @@ pub fn Style() -> Style {
     return NORMAL;
 }
 impl Style {
-    fn bold() -> Style {
-        return Style{ is_bold: true, ..self };
+    pub fn bold(&self) -> ~Style {
+        return ~Style{ is_bold: true, ..*self };
     }
 
-    fn underline() -> Style {
-        return Style{ is_underline: true, ..self };
+    pub fn underline(&self) -> ~Style {
+        return ~Style{ is_underline: true, ..*self };
     }
 
     // TODO this pretty much blows; color pairs are super archaic and i am
@@ -719,14 +743,14 @@ impl Style {
     // before capturing the window...  :|
     // TODO this doesn't handle default colors correctly, because those are
     // color index -1.
-    fn fg(color: int) -> Style {
-        return Style{ fg_color: color, ..self };
+    pub fn fg(&self, color: int) -> ~Style {
+        return ~Style{ fg_color: color, ..*self };
     }
-    fn bg(color: int) -> Style {
-        return Style{ bg_color: color, ..self };
+    pub fn bg(&self, color: int) -> ~Style {
+        return ~Style{ bg_color: color, ..*self };
     }
 
-    fn c_value() -> c_int {
+    fn c_value(&self) -> c_int {
         let mut rv: c_int = 0;
 
         if self.is_bold {
@@ -750,9 +774,10 @@ impl Style {
         };
         //let pair = ((bg << 4) | fg) as c_short;
         let pair = fg as c_short;
-        c::init_pair(pair, self.fg_color as c_short, self.bg_color as c_short);
-
-        rv |= c::COLOR_PAIR(pair as c_int);
+        unsafe {
+            c::init_pair(pair, self.fg_color as c_short, self.bg_color as c_short);
+            rv |= c::COLOR_PAIR(pair as c_int);
+        }
 
         return rv;
     }
@@ -821,7 +846,9 @@ pub fn screen_size() -> (uint, uint) {
 
 pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
     // TODO return value
-    c::init_pair(color_index as c_short, fg, bg);
+    unsafe {
+        c::init_pair(color_index as c_short, fg, bg);
+    }
 }
 
 
@@ -830,6 +857,6 @@ pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
 fn __char_to_cchar_t(ch: char) -> c::cchar_t {
     return c::cchar_t{
         attr: c::A_NORMAL as c::attr_t,
-        chars: [ch as c::wchar_t, 0, 0, 0, 0],
+        chars: [ch as wchar_t, 0, 0, 0, 0],
     };
 }
