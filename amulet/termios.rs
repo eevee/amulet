@@ -1,3 +1,5 @@
+use core::libc::{c_int,c_uint,c_ushort,c_void};
+
 // -----------------------------------------------------------------------------
 // Platform-specific implementations
 
@@ -11,7 +13,7 @@
 mod imp {
     use core::libc::{c_int,c_uint,c_ushort,c_void};
 
-    const NCCS: int = 32;
+    static NCCS: int = 32;
     type cc_t = c_int;
     type tcflag_t = c_uint;
     type speed_t = c_uint;
@@ -19,113 +21,113 @@ mod imp {
 
     // Constants.
     /* c_cc characters */
-    pub const VINTR:    c_uint = 0;
-    pub const VQUIT:    c_uint = 1;
-    pub const VERASE:   c_uint = 2;
-    pub const VKILL:    c_uint = 3;
-    pub const VEOF:     c_uint = 4;
-    pub const VTIME:    c_uint = 5;
-    pub const VMIN:     c_uint = 6;
-    pub const VSWTC:    c_uint = 7;
-    pub const VSTART:   c_uint = 8;
-    pub const VSTOP:    c_uint = 9;
-    pub const VSUSP:    c_uint = 10;
-    pub const VEOL:     c_uint = 11;
-    pub const VREPRINT: c_uint = 12;
-    pub const VDISCARD: c_uint = 13;
-    pub const VWERASE:  c_uint = 14;
-    pub const VLNEXT:   c_uint = 15;
-    pub const VEOL2:    c_uint = 16;
+    pub static VINTR:    c_uint = 0;
+    pub static VQUIT:    c_uint = 1;
+    pub static VERASE:   c_uint = 2;
+    pub static VKILL:    c_uint = 3;
+    pub static VEOF:     c_uint = 4;
+    pub static VTIME:    c_uint = 5;
+    pub static VMIN:     c_uint = 6;
+    pub static VSWTC:    c_uint = 7;
+    pub static VSTART:   c_uint = 8;
+    pub static VSTOP:    c_uint = 9;
+    pub static VSUSP:    c_uint = 10;
+    pub static VEOL:     c_uint = 11;
+    pub static VREPRINT: c_uint = 12;
+    pub static VDISCARD: c_uint = 13;
+    pub static VWERASE:  c_uint = 14;
+    pub static VLNEXT:   c_uint = 15;
+    pub static VEOL2:    c_uint = 16;
 
     /* c_iflag bits */
-    pub const IGNBRK:   c_uint = 0x00001;
-    pub const BRKINT:   c_uint = 0x00002;
-    pub const IGNPAR:   c_uint = 0x00004;
-    pub const PARMRK:   c_uint = 0x00008;
-    pub const INPCK:    c_uint = 0x00010;
-    pub const ISTRIP:   c_uint = 0x00020;
-    pub const INLCR:    c_uint = 0x00040;
-    pub const IGNCR:    c_uint = 0x00080;
-    pub const ICRNL:    c_uint = 0x00100;
-    pub const IUCLC:    c_uint = 0x00200;
-    pub const IXON:     c_uint = 0x00400;
-    pub const IXANY:    c_uint = 0x00800;
-    pub const IXOFF:    c_uint = 0x01000;
-    pub const IMAXBEL:  c_uint = 0x02000;
-    pub const IUTF8:    c_uint = 0x04000;
+    pub static IGNBRK:   c_uint = 0x00001;
+    pub static BRKINT:   c_uint = 0x00002;
+    pub static IGNPAR:   c_uint = 0x00004;
+    pub static PARMRK:   c_uint = 0x00008;
+    pub static INPCK:    c_uint = 0x00010;
+    pub static ISTRIP:   c_uint = 0x00020;
+    pub static INLCR:    c_uint = 0x00040;
+    pub static IGNCR:    c_uint = 0x00080;
+    pub static ICRNL:    c_uint = 0x00100;
+    pub static IUCLC:    c_uint = 0x00200;
+    pub static IXON:     c_uint = 0x00400;
+    pub static IXANY:    c_uint = 0x00800;
+    pub static IXOFF:    c_uint = 0x01000;
+    pub static IMAXBEL:  c_uint = 0x02000;
+    pub static IUTF8:    c_uint = 0x04000;
 
     /* c_oflag bits */
-    pub const OPOST:    c_uint = 0x00001;
-    pub const OLCUC:    c_uint = 0x00002;
-    pub const ONLCR:    c_uint = 0x00004;
-    pub const OCRNL:    c_uint = 0x00008;
-    pub const ONOCR:    c_uint = 0x00010;
-    pub const ONLRET:   c_uint = 0x00020;
-    pub const OFILL:    c_uint = 0x00040;
-    pub const OFDEL:    c_uint = 0x00080;
+    pub static OPOST:    c_uint = 0x00001;
+    pub static OLCUC:    c_uint = 0x00002;
+    pub static ONLCR:    c_uint = 0x00004;
+    pub static OCRNL:    c_uint = 0x00008;
+    pub static ONOCR:    c_uint = 0x00010;
+    pub static ONLRET:   c_uint = 0x00020;
+    pub static OFILL:    c_uint = 0x00040;
+    pub static OFDEL:    c_uint = 0x00080;
 
     /* c_cflag bit meaning */
-    pub const  B0:      c_uint = 0x00000;  // hang up
-    pub const  B50:     c_uint = 0x00001;
-    pub const  B75:     c_uint = 0x00002;
-    pub const  B110:    c_uint = 0x00003;
-    pub const  B134:    c_uint = 0x00004;
-    pub const  B150:    c_uint = 0x00005;
-    pub const  B200:    c_uint = 0x00006;
-    pub const  B300:    c_uint = 0x00007;
-    pub const  B600:    c_uint = 0x00008;
-    pub const  B1200:   c_uint = 0x00009;
-    pub const  B1800:   c_uint = 0x0000a;
-    pub const  B2400:   c_uint = 0x0000b;
-    pub const  B4800:   c_uint = 0x0000c;
-    pub const  B9600:   c_uint = 0x0000d;
-    pub const  B19200:  c_uint = 0x0000e;
-    pub const  B38400:  c_uint = 0x0000f;
-    pub const CSIZE:    c_uint = 0x00030;
-    pub const   CS5:    c_uint = 0x00000;
-    pub const   CS6:    c_uint = 0x00010;
-    pub const   CS7:    c_uint = 0x00020;
-    pub const   CS8:    c_uint = 0x00030;
-    pub const CSTOPB:   c_uint = 0x00040;
-    pub const CREAD:    c_uint = 0x00080;
-    pub const PARENB:   c_uint = 0x00100;
-    pub const PARODD:   c_uint = 0x00200;
-    pub const HUPCL:    c_uint = 0x00400;
-    pub const CLOCAL:   c_uint = 0x00800;
-    pub const  B57600:  c_uint = 0x01001;
-    pub const  B115200: c_uint = 0x01002;
-    pub const  B230400: c_uint = 0x01003;
-    pub const  B460800: c_uint = 0x01004;
-    pub const  B500000: c_uint = 0x01005;
-    pub const  B576000: c_uint = 0x01006;
-    pub const  B921600: c_uint = 0x01007;
-    pub const  B1000000: c_uint = 0x01008;
-    pub const  B1152000: c_uint = 0x01009;
-    pub const  B1500000: c_uint = 0x0100a;
-    pub const  B2000000: c_uint = 0x0100b;
-    pub const  B2500000: c_uint = 0x0100c;
-    pub const  B3000000: c_uint = 0x0100d;
-    pub const  B3500000: c_uint = 0x0100e;
-    pub const  B4000000: c_uint = 0x0100f;
+    pub static  B0:      c_uint = 0x00000;  // hang up
+    pub static  B50:     c_uint = 0x00001;
+    pub static  B75:     c_uint = 0x00002;
+    pub static  B110:    c_uint = 0x00003;
+    pub static  B134:    c_uint = 0x00004;
+    pub static  B150:    c_uint = 0x00005;
+    pub static  B200:    c_uint = 0x00006;
+    pub static  B300:    c_uint = 0x00007;
+    pub static  B600:    c_uint = 0x00008;
+    pub static  B1200:   c_uint = 0x00009;
+    pub static  B1800:   c_uint = 0x0000a;
+    pub static  B2400:   c_uint = 0x0000b;
+    pub static  B4800:   c_uint = 0x0000c;
+    pub static  B9600:   c_uint = 0x0000d;
+    pub static  B19200:  c_uint = 0x0000e;
+    pub static  B38400:  c_uint = 0x0000f;
+    pub static CSIZE:    c_uint = 0x00030;
+    pub static   CS5:    c_uint = 0x00000;
+    pub static   CS6:    c_uint = 0x00010;
+    pub static   CS7:    c_uint = 0x00020;
+    pub static   CS8:    c_uint = 0x00030;
+    pub static CSTOPB:   c_uint = 0x00040;
+    pub static CREAD:    c_uint = 0x00080;
+    pub static PARENB:   c_uint = 0x00100;
+    pub static PARODD:   c_uint = 0x00200;
+    pub static HUPCL:    c_uint = 0x00400;
+    pub static CLOCAL:   c_uint = 0x00800;
+    pub static  B57600:  c_uint = 0x01001;
+    pub static  B115200: c_uint = 0x01002;
+    pub static  B230400: c_uint = 0x01003;
+    pub static  B460800: c_uint = 0x01004;
+    pub static  B500000: c_uint = 0x01005;
+    pub static  B576000: c_uint = 0x01006;
+    pub static  B921600: c_uint = 0x01007;
+    pub static  B1000000: c_uint = 0x01008;
+    pub static  B1152000: c_uint = 0x01009;
+    pub static  B1500000: c_uint = 0x0100a;
+    pub static  B2000000: c_uint = 0x0100b;
+    pub static  B2500000: c_uint = 0x0100c;
+    pub static  B3000000: c_uint = 0x0100d;
+    pub static  B3500000: c_uint = 0x0100e;
+    pub static  B4000000: c_uint = 0x0100f;
 
     /* c_lflag bits */
-    pub const ISIG:     c_uint = 0x00001;
-    pub const ICANON:   c_uint = 0x00002;
-    pub const ECHO:     c_uint = 0x00008;
-    pub const ECHOE:    c_uint = 0x00010;
-    pub const ECHOK:    c_uint = 0x00020;
-    pub const ECHONL:   c_uint = 0x00040;
-    pub const NOFLSH:   c_uint = 0x00080;
-    pub const TOSTOP:   c_uint = 0x00100;
-    pub const IEXTEN:   c_uint = 0x08000;
+    pub static ISIG:     c_uint = 0x00001;
+    pub static ICANON:   c_uint = 0x00002;
+    pub static ECHO:     c_uint = 0x00008;
+    pub static ECHOE:    c_uint = 0x00010;
+    pub static ECHOK:    c_uint = 0x00020;
+    pub static ECHONL:   c_uint = 0x00040;
+    pub static NOFLSH:   c_uint = 0x00080;
+    pub static TOSTOP:   c_uint = 0x00100;
+    pub static IEXTEN:   c_uint = 0x08000;
 
     /* tcsetattr uses these */
-    pub const TCSANOW:   c_int = 0;
-    pub const TCSADRAIN: c_int = 1;
-    pub const TCSAFLUSH: c_int = 2;
+    pub static TCSANOW:   c_int = 0;
+    pub static TCSADRAIN: c_int = 1;
+    pub static TCSAFLUSH: c_int = 2;
 
     /* ioctls */
-    pub const TIOCGWINSZ: c_int = 0x5413;
+    pub static TIOCGWINSZ: c_int = 0x5413;
 
 
     pub struct termios {
@@ -136,13 +138,13 @@ mod imp {
         // why is this here?  what is going on?  who knows
         c_line: cc_t,           // "line discipline"
         // NOTE: 32 is the value of NCCS
-        c_cc: [cc_t * 32],      // control characters
+        c_cc: [cc_t, ..32],      // control characters
         c_ispeed: speed_t,      // input speed
         c_ospeed: speed_t,      // output speed
     }
 
     // Need this to be able to create blank structs on the stack
-    pub const BLANK_TERMIOS: termios = termios{
+    pub static BLANK_TERMIOS: termios = termios{
         c_iflag: 0,
         c_oflag: 0,
         c_cflag: 0,
@@ -178,8 +180,6 @@ mod imp {
     }
 }
 
-use core::libc::{c_int,c_uint,c_ushort,c_void};
-
 // End of platform-specific implementations.
 // -----------------------------------------------------------------------------
 
@@ -197,10 +197,11 @@ extern {
 pub struct TidyTerminalState {
     priv c_fd: c_int,
     priv c_termios_orig: imp::termios,
-    priv mut c_termios_cur: imp::termios,
+    priv c_termios_cur: @mut imp::termios,
 }
 
-impl TidyTerminalState: Drop {
+#[unsafe_destructor]
+impl Drop for TidyTerminalState {
     fn finalize (&self) {
         self.restore_term();
     }
@@ -216,7 +217,7 @@ pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
 
     return TidyTerminalState{
         c_fd: fd as c_int,
-        c_termios_cur: copy c_termios,
+        c_termios_cur: @mut copy c_termios,
         c_termios_orig: c_termios,
     };
 }
@@ -230,9 +231,9 @@ impl TidyTerminalState {
     }
 
     /** Explicitly restore the terminal to its pristine state. */
-    fn restore(&self) {
+    pub fn restore(&self) {
         self.restore_term();
-        self.c_termios_cur = copy self.c_termios_orig;
+        *self.c_termios_cur = copy self.c_termios_orig;
     }
 
 
@@ -298,7 +299,7 @@ impl TidyTerminalState {
             // is there to do about it
             // TODO do i want this in a separate 'commit()' method?  for
             // chaining etc?
-            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&self.c_termios_cur));
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&*self.c_termios_cur));
         }
     }
 }

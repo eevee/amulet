@@ -13,38 +13,39 @@ use core::cmp::Eq;
 use core::hash::Hash;
 use core::io::WriterUtil;
 use core::to_bytes::IterBytes;
-use std::map::HashMap; // XXX std::map is deprecated
+use core::hashmap::linear::LinearMap;
 
 pub struct Trie<K, V> {
-    mut value: option::Option<V>,
-    mut children: @HashMap<K, @Trie<K, V>>,
+    value: option::Option<V>,
+    children: @mut LinearMap<K, @mut Trie<K, V>>,
 }
 
 // don't be copyable
-impl<K, V> Trie<K, V>: Drop {
+#[unsafe_destructor]
+impl<K, V> Drop for Trie<K, V> {
     fn finalize (&self) {}
 }
 
 /** Construct an empty trie. */
-pub fn Trie<T: Eq IterBytes Hash Copy Const, U: Copy>() -> @Trie<T, U> {
-    return @Trie{ value: option::None::<U>, children: @HashMap() };
+pub fn Trie<T: Eq + IterBytes + Hash + Copy + Const, U: Copy>() -> @mut Trie<T, U> {
+    return @mut Trie{ value: option::None::<U>, children: @mut LinearMap::new() };
 }
 
-impl<T: Eq IterBytes Hash Copy Const, U: Copy> Trie<T, U> {
-    pub fn insert(@self, keys: &[T], value: U) {
+impl<T: Eq + IterBytes + Hash + Copy + Const, U: Copy> Trie<T, U> {
+    pub fn insert(@mut self, keys: &[T], value: U) {
         if keys.is_empty() {
-            fail ~"Trie cannot have an empty key";
+            fail!(~"Trie cannot have an empty key");
         }
 
         // TODO: error on duplicate key?
 
         let mut node = self;
         for uint::range(0, keys.len()) |k| {
-            if node.children.contains_key(keys[k]) {
-                node = node.children.get(keys[k]);
+            if node.children.contains_key(&keys[k]) {
+                node = *node.children.get(&keys[k]);
             }
             else {
-                let new_node = @Trie{ value: option::None::<U>, children: @HashMap() };
+                let new_node = @mut Trie{ value: option::None::<U>, children: @mut LinearMap::new() };
                 node.children.insert(keys[k], new_node);
                 node = new_node;
             }
@@ -53,15 +54,15 @@ impl<T: Eq IterBytes Hash Copy Const, U: Copy> Trie<T, U> {
         node.value = option::Some(value);
     }
 
-    fn find(@self, keys: &[T]) -> option::Option<U> {
+    fn find(@mut self, keys: &[T]) -> option::Option<U> {
         if keys.is_empty() {
-            fail ~"Trie cannot have an empty key";
+            fail!(~"Trie cannot have an empty key");
         }
 
         let mut node = self;
         for uint::range(0, keys.len()) |k| {
-            match node.children.find(keys[k]) {
-                option::Some(child_node) => node = child_node,
+            match node.children.find(&keys[k]) {
+                option::Some(child_node) => node = *child_node,
                 option::None => return None,
             }
         }
@@ -69,12 +70,12 @@ impl<T: Eq IterBytes Hash Copy Const, U: Copy> Trie<T, U> {
         return node.value;
     }
 
-    pub fn find_prefix(@self, keys: &[T]) -> (option::Option<U>, ~[T]) {
+    pub fn find_prefix(@mut self, keys: &[T]) -> (option::Option<U>, ~[T]) {
         let mut node = self;
         for uint::range(0, keys.len()) |k| {
-            match node.children.find(keys[k]) {
-                option::Some(child_node) => node = child_node,
-                option::None => return (node.value, vec::from_slice(keys.view(k, keys.len()))),
+            match node.children.find(&keys[k]) {
+                option::Some(child_node) => node = *child_node,
+                option::None => return (node.value, vec::from_slice(keys.slice(k, keys.len()))),
             }
         }
 
@@ -90,8 +91,8 @@ impl<T: Eq IterBytes Hash Copy Const, U: Copy> Trie<T, U> {
             option::None => (),
         }
 
-        for self.children.each |key, node| {
-            let new_prefix = vec::append_one(vec::from_slice(key_prefix), key);
+        for self.children.each |&(key, node)| {
+            let new_prefix = vec::append_one(vec::from_slice(key_prefix), *key);
             node._print_all_impl(new_prefix);
         }
     }

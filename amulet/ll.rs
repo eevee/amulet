@@ -13,16 +13,17 @@ extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
 
     // XXX why the fuck is this not available
-    const stdout: *libc::FILE;
+    static stdout: *libc::FILE;
 }
 
 
 /** Prints a given termcap sequence when it goes out of scope. */
-struct TidyTermcap {
-    term: &Terminal,
-    cap: &str,
+struct TidyTermcap<'self> {
+    term: &'self Terminal,
+    cap: &'self str,
 }
-impl TidyTermcap: Drop {
+#[unsafe_destructor]
+impl<'self> Drop for TidyTermcap<'self> {
     fn finalize(&self) {
         self.term.write_cap(self.cap);
     }
@@ -35,7 +36,7 @@ struct Terminal {
     out_fd: c_int,
     out_file: @io::Writer,
 
-    keypress_trie: @Trie<u8, Key>,
+    keypress_trie: @mut Trie<u8, Key>,
 
     priv c_terminfo: *c::TERMINAL,
     priv tidy_termstate: termios::TidyTerminalState,
@@ -55,17 +56,17 @@ pub fn Terminal() -> @Terminal {
 
         if res != c::OK {
             if error_code == -1 {
-                fail ~"Couldn't find terminfo database";
+                fail!(~"Couldn't find terminfo database");
             }
             else if error_code == 0 {
-                fail ~"Couldn't identify terminal";
+                fail!(~"Couldn't identify terminal");
             }
             else if error_code == 1 {
                 // The manual puts this as "terminal is hard-copy" but come on.
-                fail ~"Terminal appears to be made of paper";
+                fail!(~"Terminal appears to be made of paper");
             }
             else {
-                fail ~"Something is totally fucked";
+                fail!(~"Something is totally fucked");
             }
         }
     }
@@ -109,7 +110,8 @@ pub fn Terminal() -> @Terminal {
 
     return term;
 }
-impl Terminal: Drop {
+#[unsafe_destructor]
+impl Drop for Terminal {
     fn finalize(&self) {
         self.tidy_termstate.restore();
     }
@@ -152,7 +154,7 @@ impl Terminal {
 
             if value == -1 {
                 // wrong type
-                fail ~"wrong type";
+                fail!(~"wrong type");
             }
 
             // Otherwise, is 0 or 1
@@ -171,11 +173,11 @@ impl Terminal {
 
             if value == -2 {
                 // wrong type
-                fail ~"wrong type";
+                fail!(~"wrong type");
             }
             else if value == -1 {
                 // missing; should be None
-                fail ~"missing; should be None";
+                fail!(~"missing; should be None");
             }
 
             return value as uint;
@@ -193,11 +195,11 @@ impl Terminal {
 
             if value == ptr::null() {
                 // missing; should be None really
-                fail ~"missing; should be None really";
+                fail!(~"missing; should be None really");
             }
             else if value == cast::transmute(-1) {
                 // wrong type
-                fail ~"wrong type";
+                fail!(~"wrong type");
             }
 
             return value;
@@ -287,7 +289,7 @@ impl Terminal {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    fn write_tidy_cap(&self, do_cap: &str, undo_cap: &self/str) -> TidyTermcap/&self {
+    fn write_tidy_cap(&self, do_cap: &str, undo_cap: &'self str) -> TidyTermcap<'self> {
         self.write_cap(do_cap);
 
         return TidyTermcap{ term: self, cap: undo_cap };
@@ -377,7 +379,7 @@ impl Terminal {
     // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
     // responsibility!  If you don't do it in a drop, you risk leaving the
     // terminal in a fucked-up state on early exit!
-    fn enter_fullscreen(@self) -> @Window {
+    pub fn enter_fullscreen(@self) -> @Window {
         // Same stuff as above.  Enter fullscreen; enter keypad mode; clear the
         // screen.
         let tidy_cup = self.write_tidy_cap("smcup", "rmcup");
@@ -398,7 +400,7 @@ impl Terminal {
             width: self.width(),
             height: self.height(),
 
-            tidyables: ~[tidy_termstate as Drop, tidy_kx as Drop, tidy_cup as Drop],
+            tidyables: ~[@tidy_termstate as @Drop, @tidy_kx as @Drop, @tidy_cup as @Drop],
         };
     }
 }
@@ -427,7 +429,7 @@ struct Window {
     // also want to reverse termstate (since they activate raw) as well as
     // termcaps (which do fullscreen), so.  idk i don't like using scope guards
     // everywhere for all this.
-    priv tidyables: ~[Drop],
+    priv tidyables: ~[@Drop],
 }
 
 impl Window {
@@ -452,7 +454,7 @@ impl Window {
     // TODO how does the parent/child relationship work here?  does the child
     // know the parent?  vice versa?  what happens when you destroy one?  how
     // does this relate to fullscreen?
-    fn create_window(height: uint, width: uint, row: uint, col: uint) -> @Window {
+    pub fn create_window(&self, height: uint, width: uint, row: uint, col: uint) -> @Window {
         let actual_height = if height == 0 { self.height } else { height };
         let actual_width = if width == 0 { self.width } else { width };
 
@@ -525,11 +527,11 @@ impl Window {
             return ch as char;
         }
         else if res == c::ERR {
-            fail ~"ERR";
+            fail!(~"ERR");
         }
         else {
             // TODO wat
-            fail ~"wat";
+            fail!(~"wat");
         }
         // TODO what if you get WEOF...?
     }
@@ -544,7 +546,7 @@ impl Window {
         let raw_byte = self.term.in_file.read_byte();
         if raw_byte < 0 {
             // TODO how can this actually happen?
-            fail ~"couldn't read a byte?!";
+            fail!(~"couldn't read a byte?!");
         }
 
         let mut byte = raw_byte as u8;
@@ -587,14 +589,14 @@ impl Window {
                 need_more = 3;
             }
             else {
-                fail fmt!("junk byte %?", byte);
+                fail!(fmt!("junk byte %?", byte));
             }
 
             bytes += self.term.in_file.read_bytes(need_more);
             // TODO umm this only works for utf8
             let decoded = str::from_bytes(bytes);
             if decoded.len() != 1 {
-                fail ~"unexpected decoded string length!";
+                fail!(~"unexpected decoded string length!");
             }
 
             return Character(decoded.char_at(0));
@@ -640,14 +642,14 @@ impl Window {
     pub fn readln(&self) -> ~str {
         // TODO what should maximum buffer length be?
         // TODO or perhaps i should reimplement the getnstr function myself with getch.
-        const buflen: uint = 80;
+        static buflen: uint = 80;
         unsafe {
             let buf = libc::malloc(buflen * sys::size_of::<c::wint_t>() as size_t)
                 as *c::wint_t;
             let res = c::wgetn_wstr(self.c_window, buf, buflen as c_int);
 
             if res != c::OK {
-                fail ~"not ok";
+                fail!(~"not ok");
             }
 
             let vec = do vec::from_buf(buf, buflen).map |ch| { *ch as char };
@@ -783,7 +785,7 @@ impl Style {
     }
 }
 
-pub const NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color: -1, bg_color: -1 };
+pub static NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color: -1, bg_color: -1 };
 
 
 ////////////////////////////////////////////////////////////////////////////////

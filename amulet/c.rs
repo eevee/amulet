@@ -6,15 +6,15 @@ use core::libc::*;
 // TODO less manual would be appreciated
 pub type TERMINAL = c_void;
 #[link_args = "-lncursesw"]
-extern {
-    pub const cur_term: *TERMINAL;
+pub extern {
+    pub static cur_term: *TERMINAL;
 
     // These are static arrays of unknown length, which is hard to express in
     // Rust; fudge it here and do pointer mangling in Rust-land
-    pub const boolnames: [*c_char * 1];
-    pub const numnames: [*c_char * 1];
-    pub const strnames: [*c_char * 1];
-    pub const boolcodes: [*c_char * 1];
+    pub static boolnames: [*c_char, ..1];
+    pub static numnames: [*c_char, ..1];
+    pub static strnames: [*c_char, ..1];
+    pub static boolcodes: [*c_char, ..1];
 
     pub fn setupterm(arg1: *c_char, arg2: c_int, arg3: *c_int) -> c_int;
     pub fn set_curterm(arg1: *TERMINAL) -> *TERMINAL;
@@ -26,7 +26,7 @@ extern {
 // This is not necessarily true, but it's *probably* true.  Defined in wchar.h
 // but missing from Rust's libc definitions.
 pub type wint_t = c_uint;
-pub const WEOF: c_uint = 0xffffffff;
+pub static WEOF: c_uint = 0xffffffff;
 
 pub type chtype = c_uint;
 pub type mmask_t = c_ulong;
@@ -37,7 +37,7 @@ pub type WINDOW = Struct__win_st;
 pub type attr_t = chtype;
 pub struct cchar_t {
     attr: attr_t,
-    chars: [wchar_t * 5],
+    chars: [wchar_t, ..5],
 }
 pub type Struct_ldat = c_void;
 pub struct Struct__win_st {
@@ -89,19 +89,19 @@ pub struct MEVENT {
     bstate: mmask_t,
 }
 #[link_args = "-lncursesw"]
-extern  {
-    pub const acs_map: c_void;
-    pub const curscr: *WINDOW;
-    pub const newscr: *WINDOW;
-    pub const stdscr: *WINDOW;
-    pub const ttytype: c_void;
-    pub const COLORS: c_int;
-    pub const COLOR_PAIRS: c_int;
-    pub const COLS: c_int;
-    pub const ESCDELAY: c_int;
-    pub const LINES: c_int;
-    pub const TABSIZE: c_int;
-    pub const _nc_wacs: *cchar_t;
+pub extern {
+    pub static acs_map: c_void;
+    pub static curscr: *WINDOW;
+    pub static newscr: *WINDOW;
+    pub static stdscr: *WINDOW;
+    pub static ttytype: c_void;
+    pub static COLORS: c_int;
+    pub static COLOR_PAIRS: c_int;
+    pub static COLS: c_int;
+    pub static ESCDELAY: c_int;
+    pub static LINES: c_int;
+    pub static TABSIZE: c_int;
+    pub static _nc_wacs: *cchar_t;
     //wide: fn addch(++arg1: chtype) -> c_int;
     //wide: fn addchnstr(++arg1: *chtype, ++arg2: c_int) -> c_int;
     //wide: fn addchstr(++arg1: *chtype) -> c_int;
@@ -546,33 +546,33 @@ extern  {
 ////////////////////////////////////////////////////////////////////////////////
 // Manually-ported preprocessor stuff
 
-pub const COLOR_BLACK:      c_short = 0;
-pub const COLOR_RED:        c_short = 1;
-pub const COLOR_GREEN:      c_short = 2;
-pub const COLOR_YELLOW:     c_short = 3;
-pub const COLOR_BLUE:       c_short = 4;
-pub const COLOR_MAGENTA:    c_short = 5;
-pub const COLOR_CYAN:       c_short = 6;
-pub const COLOR_WHITE:      c_short = 7;
+pub static COLOR_BLACK:      c_short = 0;
+pub static COLOR_RED:        c_short = 1;
+pub static COLOR_GREEN:      c_short = 2;
+pub static COLOR_YELLOW:     c_short = 3;
+pub static COLOR_BLUE:       c_short = 4;
+pub static COLOR_MAGENTA:    c_short = 5;
+pub static COLOR_CYAN:       c_short = 6;
+pub static COLOR_WHITE:      c_short = 7;
 
-pub const NCURSES_ATTR_SHIFT: c_int = 8;
-pub const A_NORMAL: c_int = 0;
+pub static NCURSES_ATTR_SHIFT: c_int = 8;
+pub static A_NORMAL: c_int = 0;
 //#define A_ATTRIBUTES NCURSES_BITS(~(1U - 1U),0)
 //#define A_CHARTEXT   (NCURSES_BITS(1U,0) - 1U)
-pub const A_COLOR:      c_int = ((1 << 8) - 1) << (NCURSES_ATTR_SHIFT);
-pub const A_STANDOUT:   c_int = 1 << (NCURSES_ATTR_SHIFT + 8);
-pub const A_UNDERLINE:  c_int = 1 << (NCURSES_ATTR_SHIFT + 9);
-pub const A_REVERSE:    c_int = 1 << (NCURSES_ATTR_SHIFT + 10);
-pub const A_BLINK:      c_int = 1 << (NCURSES_ATTR_SHIFT + 11);
-pub const A_DIM:        c_int = 1 << (NCURSES_ATTR_SHIFT + 12);
-pub const A_BOLD:       c_int = 1 << (NCURSES_ATTR_SHIFT + 13);
+pub static A_COLOR:      c_int = ((1 << 8) - 1) << (NCURSES_ATTR_SHIFT);
+pub static A_STANDOUT:   c_int = 1 << (NCURSES_ATTR_SHIFT + 8);
+pub static A_UNDERLINE:  c_int = 1 << (NCURSES_ATTR_SHIFT + 9);
+pub static A_REVERSE:    c_int = 1 << (NCURSES_ATTR_SHIFT + 10);
+pub static A_BLINK:      c_int = 1 << (NCURSES_ATTR_SHIFT + 11);
+pub static A_DIM:        c_int = 1 << (NCURSES_ATTR_SHIFT + 12);
+pub static A_BOLD:       c_int = 1 << (NCURSES_ATTR_SHIFT + 13);
 
-pub const KEY_DOWN:     wint_t = 258;
-pub const KEY_UP:       wint_t = 259;
-pub const KEY_LEFT:     wint_t = 260;
-pub const KEY_RIGHT:    wint_t = 261;
+pub static KEY_DOWN:     wint_t = 258;
+pub static KEY_UP:       wint_t = 259;
+pub static KEY_LEFT:     wint_t = 260;
+pub static KEY_RIGHT:    wint_t = 261;
 
-pub const KEY_F0:       wint_t = 264;
+pub static KEY_F0:       wint_t = 264;
 
 pub fn KEY_F(n: wint_t) -> wint_t {
     return KEY_F0 + n;
@@ -580,8 +580,8 @@ pub fn KEY_F(n: wint_t) -> wint_t {
 
 
 // Return values
-pub const ERR: c_int = -1;
-pub const OK: c_int = 0;
+pub static ERR: c_int = -1;
+pub static OK: c_int = 0;
 
-pub const KEY_CODE_YES: c_int = 256;
+pub static KEY_CODE_YES: c_int = 256;
 
