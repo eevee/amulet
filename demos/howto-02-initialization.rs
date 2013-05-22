@@ -10,24 +10,27 @@ fn main() {
     let bold = amulet::ll::Style().bold();
 
     let term = amulet::ll::Terminal();
-    do term.fullscreen |window| {
-        // XXX these have got to go
-        amulet::c::noecho();
+    do term.fullscreen_canvas |canvas| {
+        // TODO implement me -- right now there's NEVER echo, so
+        // TODO also i don't like this curses-style api; maybe a "set_options"
+        // or something
+        // term.noecho();
 
-        window.write("Type any character to see it in bold\n");
+        canvas.write("Type any character to see it in bold\n");
+        canvas.repaint();
 
-        let ch = window.read_key();
+        let ch = canvas.read_key();
         match ch {
             amulet::ll::FunctionKey(n) if n == 1 => {
-                window.write("F1 key pressed");
+                canvas.write("F1 key pressed");
             }
             _ => {
-                window.write("The pressed key is ");
-                window.attrwrite(fmt!("%?", ch), bold);
+                canvas.write("The pressed key is ");
+                canvas.attrwrite(fmt!("%?", ch), bold);
             }
         }
 
-        window.repaint();
-        window.pause();
+        canvas.repaint();
+        canvas.pause();
     }
 }

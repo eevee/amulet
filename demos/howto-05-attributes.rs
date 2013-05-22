@@ -9,7 +9,6 @@ extern mod amulet;
 /* pager functionality by Joseph Spainhou <spainhou@bellsouth.net> */
 
 fn main() {
-    let mut ch;
     let mut prev = 0;
 
     let args = os::args();
@@ -29,41 +28,44 @@ fn main() {
 
     // cannot open input file...
 
-    let window = amulet::ll::init_screen();
-    let (rows, _cols) = window.size();
+    let term = amulet::ll::Terminal();
+    do term.fullscreen_canvas |canvas| {
+        let mut ch;
+        let (rows, _cols) = canvas.size();
 
-    let plain = ~amulet::ll::Style();
-    let bold = plain.bold();
-    let mut cur_style = copy plain;
+        let plain = ~amulet::ll::Style();
+        let bold = plain.bold();
+        let mut cur_style = copy plain;
 
-    while ! fh.eof() {
-        ch = fh.read_byte();
-        let (row, col) = window.position();
+        while ! fh.eof() {
+            ch = fh.read_byte();
+            let (row, col) = canvas.position();
 
-        if row == rows - 1 {
-            window.write("<-Press Any Key->");
-            window.getch();
-            window.clear();
-            window.mv(0, 0);
+            if row == rows - 1 {
+                canvas.write("<-Press Any Key->");
+                canvas.pause();
+                canvas.clear();
+                canvas.move(0, 0);
+            }
+
+            if prev as char == '/' && ch as char == '*' {
+                //canvas.write(#fmt("%c", ch as char));
+                cur_style = copy bold;
+
+                canvas.move(row, col - 1);
+                canvas.attrwrite(fmt!("%c%c", prev as char, ch as char), cur_style);
+            }
+            else {
+                canvas.attrwrite(fmt!("%c", ch as char), cur_style);
+            }
+
+            canvas.repaint();
+
+            if prev as char == '*' && ch as char == '/' {
+                cur_style = copy plain;
+            }
+
+            prev = ch;
         }
-
-        if prev as char == '/' && ch as char == '*' {
-            //window.write(#fmt("%c", ch as char));
-            cur_style = copy bold;
-
-            window.mv(row, col - 1);
-            window.attrwrite(fmt!("%c%c", prev as char, ch as char), cur_style);
-        }
-        else {
-            window.attrwrite(fmt!("%c", ch as char), cur_style);
-        }
-
-        window.repaint();
-
-        if prev as char == '*' && ch as char == '/' {
-            cur_style = copy plain;
-        }
-
-        prev = ch;
     }
 }

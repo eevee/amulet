@@ -9,6 +9,7 @@ pub mod c;
 // TODO unraw
 // TODO unlegacy
 
+pub mod canvas;
 pub mod ll;
 pub mod termios;
 mod trie;

@@ -9,6 +9,8 @@ use c;
 use termios;
 use trie::Trie;
 
+use canvas::Canvas;
+
 extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;
 
@@ -374,6 +376,30 @@ impl Terminal {
             tidyables: ~[],
         };
         cb(win);
+    }
+
+    pub fn fullscreen_canvas(@self, cb: &fn(&mut Canvas)) {
+        // Enter fullscreen
+        let _tidy_cup = self.write_tidy_cap("smcup", "rmcup");
+
+        // Enable keypad mode
+        let _tidy_kx = self.write_tidy_cap("smkx", "rmkx");
+
+        // And clear the screen first
+        self.write_cap("clear");
+
+        // TODO intrflush, or is that a curses thing?
+
+        // TODO so, we need to switch to raw mode *some*where.  is this an
+        // appropriate place?  i assume if you have a fullscreen app then you
+        // want to get keypresses.
+        // TODO seems weird to create a second one of these.  stick a
+        // .checkpoint() on the one attached to the terminal?
+        let tidy_termstate = termios::TidyTerminalState(self.in_fd);
+        tidy_termstate.raw();
+
+        let mut canv = Canvas(self, 0, 0, self.height(), self.width());
+        cb(&mut canv);
     }
 
     // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
@@ -805,7 +831,7 @@ enum SpecialKey {
     KEY_UNKNOWN,
 }
 
-enum Key {
+pub enum Key {
     Character(char),
     SpecialKey(SpecialKey),
     FunctionKey(uint),

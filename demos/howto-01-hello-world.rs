@@ -8,9 +8,9 @@ extern mod amulet;
 
 fn main() {
     let term = amulet::ll::Terminal();
-    do term.fullscreen |window| {
-        window.write("Hello World !!!");
-        window.repaint();
-        window.pause();
+    do term.fullscreen_canvas |canvas| {
+        canvas.write("Hello World !!!");
+        canvas.repaint();
+        canvas.pause();
     }
 }
