@@ -43,6 +43,7 @@ fn main() {
 
             if row == rows - 1 {
                 canvas.write("<-Press Any Key->");
+                canvas.repaint();
                 canvas.pause();
                 canvas.clear();
                 canvas.move(0, 0);

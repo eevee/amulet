@@ -266,6 +266,8 @@ impl Terminal {
             let formatted = c::tparm(
                 template, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 
+            //unsafe { io::stderr().write_str(fmt!("%s\t%s\n", name, str::raw::from_c_str(formatted))); }
+
             // TODO we are supposed to use curses's tputs(3) to print formatted
             // capabilities, because they sometimes contain "padding" of the
             // form $<5>.  alas, tputs always prints to stdout!  but we don't
@@ -328,6 +330,11 @@ impl Terminal {
 
 
     // Some stuff
+    pub fn move(&self, x: uint, y: uint) {
+        // TODO check for existence of cup
+        self.write_cap2("cup", y as int, x as int);
+    }
+
     pub fn at(&self, x: uint, y: uint, cb: &fn()) {
         self.write_cap("sc");  // save cursor
         // TODO check for existence of cup
@@ -362,7 +369,7 @@ impl Terminal {
         // TODO seems weird to create a second one of these.  stick a
         // .checkpoint() on the one attached to the terminal?
         let tidy_termstate = termios::TidyTerminalState(self.in_fd);
-        tidy_termstate.raw();
+        tidy_termstate.cbreak();
 
         let win = @Window{
             c_window: ptr::null(),  // TODO obviously
@@ -396,7 +403,7 @@ impl Terminal {
         // TODO seems weird to create a second one of these.  stick a
         // .checkpoint() on the one attached to the terminal?
         let tidy_termstate = termios::TidyTerminalState(self.in_fd);
-        tidy_termstate.raw();
+        tidy_termstate.cbreak();
 
         let mut canv = Canvas(self, 0, 0, self.height(), self.width());
         cb(&mut canv);
@@ -415,7 +422,7 @@ impl Terminal {
         // TODO intrflush, as above...?
 
         let tidy_termstate = termios::TidyTerminalState(self.in_fd);
-        tidy_termstate.raw();
+        tidy_termstate.cbreak();
 
         return @Window{
             c_window: ptr::null(),  // TODO obviously

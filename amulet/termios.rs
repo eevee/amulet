@@ -250,11 +250,25 @@ impl TidyTerminalState {
       * untouched.  This means, for example, that ^C doesn't send a SIGINT.
       */
     pub fn raw(&self) {
+        // Disable SIGINT
+        self.c_termios_cur.c_iflag &= !imp::BRKINT;
+        // Ignore usual signal-generating keys
+        self.c_termios_cur.c_lflag &= !imp::ISIG;
+
+        // Everything else is covered by cbreak
+        self.cbreak();
+    }
+
+    /** Switch an fd to "cbreak" mode.
+      *
+      * This is identical to raw mode, except that ^C and other signal keys
+      * work as normal instead of going to the application.
+      */
+    pub fn cbreak(&self) {
         self.c_termios_cur.c_iflag &= !(
             imp::IXON       // ignore XON/XOFF, i.e. ^S ^Q
             | imp::ISTRIP   // don't strip the 8th bit (?!)
             | imp::INPCK    // don't check for parity errors
-            | imp::BRKINT   // don't send SIGINT on BREAK
             | imp::ICRNL    // don't convert cr to nl
             | imp::INLCR    // don't convert nl to cr
             | imp::IGNCR    // don't drop cr
@@ -287,7 +301,6 @@ impl TidyTerminalState {
         self.c_termios_cur.c_lflag &= !(
             imp::ICANON     // turn off "canonical" mode -- this is the primary
                             // char-at-a-time flag
-            | imp::ISIG     // ignore usual signal-generating keys
             | imp::IEXTEN   // turn off "impl-specific processing"
             | imp::ECHO     // turn off local echo
         );

@@ -9,6 +9,13 @@ struct CanvasCell {
     style: (),
 }
 
+struct CanvasRow {
+    is_dirty: bool,
+    last_dirty: uint,
+    first_dirty: uint,
+    cells: ~[CanvasCell],
+}
+
 struct Canvas {
     term: @Terminal,
     start_row: uint,
@@ -18,18 +25,23 @@ struct Canvas {
     height: uint,
     width: uint,
 
-    cells: ~[~[CanvasCell]],
+    rows: ~[CanvasRow],
 }
 
 pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, width: uint) -> Canvas {
-    let cells = vec::from_fn(height, |_row| {
-        vec::from_fn(width, |_col| {
-            CanvasCell{
-                dirty: false,
-                glyph: ' ',
-                style: (),
-            }
-        })
+    let rows = vec::from_fn(height, |_row| {
+        CanvasRow{
+            is_dirty: false,
+            last_dirty: 0,
+            first_dirty: 0,
+            cells: vec::from_fn(width, |_col| {
+                CanvasCell{
+                    dirty: false,
+                    glyph: ' ',
+                    style: (),
+                }
+            }),
+        }
     });
     return Canvas{
         term: term,
@@ -41,7 +53,7 @@ pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, w
         height: height,
         width: width,
 
-        cells: cells,
+        rows: rows,
     };
 }
 
@@ -70,8 +82,11 @@ impl Canvas {
     pub fn clear(&mut self) {
         // TODO clearing the screen can be done with a single termcap, but how
         // do i remember that
-        for self.cells.each_mut |row| {
-            for row.each_mut |cell| {
+        for self.rows.each_mut |row| {
+            row.is_dirty = true;
+            row.last_dirty = self.width - 1;
+            row.first_dirty = 0;
+            for row.cells.each_mut |cell| {
                 *cell = CanvasCell{
                     dirty: true,
                     glyph: ' ',
@@ -97,11 +112,21 @@ impl Canvas {
                 return;
             }
 
-            self.cells[self.cur_row][self.cur_col] = CanvasCell{
-                dirty: true,
-                glyph: glyph,
-                style: (),
-            };
+            {
+                let row = &mut self.rows[self.cur_row];
+                row.cells[self.cur_col] = CanvasCell{
+                    dirty: true,
+                    glyph: glyph,
+                    style: (),
+                };
+                row.is_dirty = true;
+                if self.cur_col > row.last_dirty {
+                    row.last_dirty = self.cur_col;
+                }
+                if self.cur_col < row.first_dirty {
+                    row.first_dirty = self.cur_col;
+                }
+            }
 
             self.cur_col += 1;
             if self.cur_col >= self.start_col + self.width {
@@ -123,22 +148,26 @@ impl Canvas {
         // TODO check for existence of cup?  fallback?
         //self.term.write_cap2("cup", self.start_col as int, self.start_row as int);
 
-        // TODO this does sc/rc which is not really necessary
-        for uint::range(0, self.height) |row| {
-            let mut dirty_col = 0;
-            while dirty_col < self.width && ! self.cells[row][dirty_col].dirty {
-                dirty_col += 1;
-            }
-            if dirty_col >= self.width {
+        for uint::range(0, self.height) |row_i| {
+            let row = &mut self.rows[row_i];
+            if ! row.is_dirty {
                 loop;
             }
-            do self.term.at(self.start_col + dirty_col, self.start_row + row) {
-                for uint::range(dirty_col, self.width) |col| {
-                    self.term.write(fmt!("%c", self.cells[row][col].glyph));
-                    self.cells[row][col].dirty = false;
-                }
+
+            // TODO the terminal could track its cursor position and optimize this move away
+            self.term.move(row.first_dirty, self.start_row + row_i);
+            // TODO with this level of optimization, imo, there should also be a method for forcibly redrawing the entire screen from (presumed) scratch
+            for uint::range(row.first_dirty, row.last_dirty + 1) |col| {
+                self.term.write(fmt!("%c", row.cells[col].glyph));
+                row.cells[col].dirty = false;
             }
+
+            row.is_dirty = false;
+            row.first_dirty = self.width;
+            row.last_dirty = 0;
         }
+
+        // TODO move the cursor to its original position if that's not where it is now
     }
 
     // -------------------------------------------------------------------------
