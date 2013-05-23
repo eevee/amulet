@@ -283,7 +283,7 @@ impl Terminal {
 
     // TODO seems it would make sense to cache non-formatted capabilities (as
     // well as numeric/flag ones), which i think blessings does
-    fn write_cap(&self, cap_name: &str) {
+    pub fn write_cap(&self, cap_name: &str) {
         // If we're calling this function then this capability really shouldn't
         // take any arguments, but someone might have screwed up, or it may
         // have an escaped % or something.  Best do the whole formatting thing.
@@ -312,7 +312,7 @@ impl Terminal {
         io::stdout().flush();
     }
 
-    pub fn attrwrite(&self, s: &str, style: &Style) {
+    pub fn attrwrite(&self, s: &str, style: Style) {
         // TODO try to cut down on the amount of back-and-forth between c
         // strings and rust strings all up in here
         if style.is_underline {
@@ -519,7 +519,7 @@ impl Window {
         self.term.write(msg);
     }
 
-    pub fn attrwrite(&self, s: &str, style: &Style) {
+    pub fn attrwrite(&self, s: &str, style: Style) {
         // TODO same as above
         self.term.attrwrite(s, style);
     }
@@ -762,12 +762,12 @@ pub fn Style() -> Style {
     return NORMAL;
 }
 impl Style {
-    pub fn bold(&self) -> ~Style {
-        return ~Style{ is_bold: true, ..*self };
+    pub fn bold(&self) -> Style {
+        return Style{ is_bold: true, ..*self };
     }
 
-    pub fn underline(&self) -> ~Style {
-        return ~Style{ is_underline: true, ..*self };
+    pub fn underline(&self) -> Style {
+        return Style{ is_underline: true, ..*self };
     }
 
     // TODO this pretty much blows; color pairs are super archaic and i am
@@ -778,11 +778,11 @@ impl Style {
     // before capturing the window...  :|
     // TODO this doesn't handle default colors correctly, because those are
     // color index -1.
-    pub fn fg(&self, color: int) -> ~Style {
-        return ~Style{ fg_color: color, ..*self };
+    pub fn fg(&self, color: int) -> Style {
+        return Style{ fg_color: color, ..*self };
     }
-    pub fn bg(&self, color: int) -> ~Style {
-        return ~Style{ bg_color: color, ..*self };
+    pub fn bg(&self, color: int) -> Style {
+        return Style{ bg_color: color, ..*self };
     }
 
     fn c_value(&self) -> c_int {

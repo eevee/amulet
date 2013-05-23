@@ -6,7 +6,7 @@ use ll::{Character,Key,Style};  // TODO move these somewhere dealing with keys a
 struct CanvasCell {
     dirty: bool,
     glyph: char,
-    style: (),
+    style: Style,
 }
 
 struct CanvasRow {
@@ -38,7 +38,7 @@ pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, w
                 CanvasCell{
                     dirty: false,
                     glyph: ' ',
-                    style: (),
+                    style: Style(),
                 }
             }),
         }
@@ -90,13 +90,13 @@ impl Canvas {
                 *cell = CanvasCell{
                     dirty: true,
                     glyph: ' ',
-                    style: (),
+                    style: Style(),
                 };
             }
         }
     }
 
-    pub fn attrwrite(&mut self, s: &str, style: &Style) {
+    pub fn attrwrite(&mut self, s: &str, style: Style) {
         for str::each_char(s) |glyph| {
             if glyph == '\n' {
                 // TODO this probably needs (a) more cases, (b) termcap
@@ -117,7 +117,7 @@ impl Canvas {
                 row.cells[self.cur_col] = CanvasCell{
                     dirty: true,
                     glyph: glyph,
-                    style: (),
+                    style: copy style,
                 };
                 row.is_dirty = true;
                 if self.cur_col > row.last_dirty {
@@ -140,13 +140,15 @@ impl Canvas {
     }
 
     pub fn write(&mut self, s: &str) {
-        self.attrwrite(s, &Style());
+        self.attrwrite(s, Style());
     }
 
     pub fn repaint(&mut self) {
         // TODO wrap this
         // TODO check for existence of cup?  fallback?
         //self.term.write_cap2("cup", self.start_col as int, self.start_row as int);
+
+        let mut is_bold = false;
 
         for uint::range(0, self.height) |row_i| {
             let row = &mut self.rows[row_i];
@@ -158,13 +160,33 @@ impl Canvas {
             self.term.move(self.start_col + row.first_dirty, self.start_row + row_i);
             // TODO with this level of optimization, imo, there should also be a method for forcibly redrawing the entire screen from (presumed) scratch
             for uint::range(row.first_dirty, row.last_dirty + 1) |col| {
-                self.term.write(fmt!("%c", row.cells[col].glyph));
+                let cell = row.cells[col];
+
+                // Deal with formatting
+                if cell.style.is_bold && ! is_bold {
+                    self.term.write_cap("bold");
+                    is_bold = true;
+                }
+                else if is_bold && ! cell.style.is_bold {
+                    // TODO this resets formatting entirely -- there's no way
+                    // to turn off bold/underline individually  :|
+                    self.term.write_cap("sgr0");
+                    is_bold = false;
+                }
+
+                self.term.write(fmt!("%c", cell.glyph));
                 row.cells[col].dirty = false;
             }
 
             row.is_dirty = false;
             row.first_dirty = self.width;
             row.last_dirty = 0;
+        }
+
+        // Clean up attribute settings when done
+        // TODO optimization possibilities here if we remember the current cursor style -- which we may need to do anyway once we're tracking more than bold
+        if is_bold {
+            self.term.write_cap("sgr0");
         }
 
         // TODO move the cursor to its original position if that's not where it is now

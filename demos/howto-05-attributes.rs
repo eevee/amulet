@@ -33,9 +33,9 @@ fn main() {
         let mut ch;
         let (rows, _cols) = canvas.size();
 
-        let plain = ~amulet::ll::Style();
+        let plain = amulet::ll::Style();
         let bold = plain.bold();
-        let mut cur_style = copy plain;
+        let mut cur_style = &plain;
 
         while ! fh.eof() {
             ch = fh.read_byte();
@@ -51,19 +51,19 @@ fn main() {
 
             if prev as char == '/' && ch as char == '*' {
                 //canvas.write(#fmt("%c", ch as char));
-                cur_style = copy bold;
+                cur_style = &bold;
 
                 canvas.move(row, col - 1);
-                canvas.attrwrite(fmt!("%c%c", prev as char, ch as char), cur_style);
+                canvas.attrwrite(fmt!("%c%c", prev as char, ch as char), *cur_style);
             }
             else {
-                canvas.attrwrite(fmt!("%c", ch as char), cur_style);
+                canvas.attrwrite(fmt!("%c", ch as char), *cur_style);
             }
 
             canvas.repaint();
 
             if prev as char == '*' && ch as char == '/' {
-                cur_style = copy plain;
+                cur_style = &plain;
             }
 
             prev = ch;
