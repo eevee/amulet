@@ -48,8 +48,8 @@ pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, w
 
         start_row: start_row,
         start_col: start_col,
-        cur_row: start_row,
-        cur_col: start_col,
+        cur_row: 0,
+        cur_col: 0,
         height: height,
         width: width,
 
@@ -102,9 +102,9 @@ impl Canvas {
                 // TODO this probably needs (a) more cases, (b) termcap
                 // influence
                 self.cur_row += 1;
-                self.cur_col = self.start_col;
+                self.cur_col = 0;
 
-                if self.cur_row >= self.start_row + self.height {
+                if self.cur_row >= self.height {
                     fail!(~"TODO");
                 }
 
@@ -129,11 +129,11 @@ impl Canvas {
             }
 
             self.cur_col += 1;
-            if self.cur_col >= self.start_col + self.width {
+            if self.cur_col >= self.width {
                 self.cur_row += 1;
-                self.cur_col = self.start_col;
+                self.cur_col = 0;
             }
-            if self.cur_row >= self.start_row + self.height {
+            if self.cur_row >= self.height {
                 fail!(~"TODO");
             }
         }
@@ -155,7 +155,7 @@ impl Canvas {
             }
 
             // TODO the terminal could track its cursor position and optimize this move away
-            self.term.move(row.first_dirty, self.start_row + row_i);
+            self.term.move(self.start_col + row.first_dirty, self.start_row + row_i);
             // TODO with this level of optimization, imo, there should also be a method for forcibly redrawing the entire screen from (presumed) scratch
             for uint::range(row.first_dirty, row.last_dirty + 1) |col| {
                 self.term.write(fmt!("%c", row.cells[col].glyph));
