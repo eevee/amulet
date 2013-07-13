@@ -1,9 +1,15 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-extern mod std;
-
-use core::libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t,wchar_t};
-use core::io::ReaderUtil;
+use std::libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t,wchar_t};
+use std::io::ReaderUtil;
+use std::ptr;
+use std::str;
+use std::libc;
+use std::io;
+use std::cast;
+use std::vec::raw;
+use std::vec;
+use std::sys;
 
 use c;
 use termios;
@@ -22,13 +28,22 @@ extern {
 /** Prints a given termcap sequence when it goes out of scope. */
 struct TidyTermcap<'self> {
     term: &'self Terminal,
-    cap: &'self str,
+    cap: &'static str,
 }
 #[unsafe_destructor]
 impl<'self> Drop for TidyTermcap<'self> {
-    fn finalize(&self) {
+    fn drop(&self) {
         self.term.write_cap(self.cap);
     }
+}
+
+/** Wraps a couple other droppables.  Exists because Rust currently doesn't
+ * handle borrowed pointers to traits very well; see
+ * https://github.com/mozilla/rust/issues/5708
+ */
+pub struct TidyBundle<'self> {
+    tidy_termcaps: ~[TidyTermcap<'self>],
+    tidy_termstates: ~[termios::TidyTerminalState],
 }
 
 
@@ -54,7 +69,7 @@ pub fn Terminal() -> @Terminal {
     // third arg is a var to stick the error code in.
     // TODO allegedly setupterm doesn't work on BSD?
     unsafe {
-        let res = c::setupterm(ptr::null(), -1, ptr::addr_of(&error_code));
+        let res = c::setupterm(ptr::null(), -1, ptr::to_unsafe_ptr(&error_code));
 
         if res != c::OK {
             if error_code == -1 {
@@ -114,7 +129,7 @@ pub fn Terminal() -> @Terminal {
 }
 #[unsafe_destructor]
 impl Drop for Terminal {
-    fn finalize(&self) {
+    fn drop(&self) {
         self.tidy_termstate.restore();
     }
 }
@@ -230,12 +245,12 @@ impl Terminal {
      * missing arguments become zero.  No capability requires more than 9
      * arguments.
      */
-    fn format_cap(&self, name: &str, args: &[int]) -> ~str {
+    fn format_cap(&self, name: &str, args: ~[int]) -> ~str {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let template = self._string_cap_cstr(name);
-            let padded_args = args.to_vec() + [0, .. 8];
+            let padded_args = args + ~[0, 0, 0, 0, 0, 0, 0, 0];
             let formatted = c::tparm(
                 template,
                 padded_args[0] as c_long,
@@ -293,7 +308,7 @@ impl Terminal {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    fn write_tidy_cap(&self, do_cap: &str, undo_cap: &'self str) -> TidyTermcap<'self> {
+    fn write_tidy_cap<'r>(&'r self, do_cap: &str, undo_cap: &'static str) -> TidyTermcap<'r> {
         self.write_cap(do_cap);
 
         return TidyTermcap{ term: self, cap: undo_cap };
@@ -406,13 +421,13 @@ impl Terminal {
         tidy_termstate.cbreak();
 
         let mut canv = Canvas(self, 0, 0, self.height(), self.width());
-        cb(&mut canv);
+        cb(canv);
     }
 
     // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
     // responsibility!  If you don't do it in a drop, you risk leaving the
     // terminal in a fucked-up state on early exit!
-    pub fn enter_fullscreen(@self) -> @Window {
+    pub fn enter_fullscreen<'r>(&'r self) -> ~Canvas<'r> {
         // Same stuff as above.  Enter fullscreen; enter keypad mode; clear the
         // screen.
         let tidy_cup = self.write_tidy_cap("smcup", "rmcup");
@@ -424,17 +439,10 @@ impl Terminal {
         let tidy_termstate = termios::TidyTerminalState(self.in_fd);
         tidy_termstate.cbreak();
 
-        return @Window{
-            c_window: ptr::null(),  // TODO obviously
-
-            term: self,
-            row: 0,
-            col: 0,
-            width: self.width(),
-            height: self.height(),
-
-            tidyables: ~[@tidy_termstate as @Drop, @tidy_kx as @Drop, @tidy_cup as @Drop],
-        };
+        let mut canv = Canvas(self, 0, 0, self.height(), self.width());
+        canv.tidyables.tidy_termcaps.push_all_move(~[tidy_kx, tidy_cup]);
+        canv.tidyables.tidy_termstates.push(tidy_termstate);
+        return canv;
     }
 }
 
@@ -550,7 +558,7 @@ impl Window {
     pub fn getch(&self) -> char {
         // TODO this name sucks
         let ch: c::wint_t = 0;
-        let res = unsafe { c::wget_wch(self.c_window, ptr::addr_of(&ch)) };
+        let res = unsafe { c::wget_wch(self.c_window, ptr::to_unsafe_ptr(&ch)) };
         if res == c::OK {
             return ch as char;
         }
@@ -625,7 +633,7 @@ impl Window {
                 fail!(fmt!("junk byte %?", byte));
             }
 
-            bytes += self.term.in_file.read_bytes(need_more);
+            bytes.push_all_move(self.term.in_file.read_bytes(need_more));
             // TODO umm this only works for utf8
             let decoded = str::from_bytes(bytes);
             if decoded.len() != 1 {
@@ -643,10 +651,10 @@ impl Window {
         loop {
             let (maybe_key, remaining_bytes) = self.term.keypress_trie.find_prefix(bytes);
             match maybe_key {
-                option::Some(key) => {
+                Some(key) => {
                     return key;
                 }
-                option::None => (),
+                None => (),
             }
             // XXX right now we are discarding any leftover bytes -- but we also only read one at a time so there are never leftovers
             // bytes = remaining_bytes;
@@ -708,7 +716,7 @@ impl Window {
     pub fn set_box(&self, vert: char, horiz: char) {
         unsafe {
             // TODO return value
-            c::box_set(self.c_window, ptr::addr_of(&__char_to_cchar_t(vert)), ptr::addr_of(&__char_to_cchar_t(horiz)));
+            c::box_set(self.c_window, ptr::to_unsafe_ptr(&__char_to_cchar_t(vert)), ptr::to_unsafe_ptr(&__char_to_cchar_t(horiz)));
         }
     }
 
@@ -716,14 +724,14 @@ impl Window {
         unsafe {
             // TODO return value
             c::wborder_set(self.c_window,
-                ptr::addr_of(&__char_to_cchar_t(l)),
-                ptr::addr_of(&__char_to_cchar_t(r)),
-                ptr::addr_of(&__char_to_cchar_t(t)),
-                ptr::addr_of(&__char_to_cchar_t(b)),
-                ptr::addr_of(&__char_to_cchar_t(tl)),
-                ptr::addr_of(&__char_to_cchar_t(tr)),
-                ptr::addr_of(&__char_to_cchar_t(bl)),
-                ptr::addr_of(&__char_to_cchar_t(br))
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(l)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(r)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(t)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(b)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(tl)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(tr)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(bl)),
+                ptr::to_unsafe_ptr(&__char_to_cchar_t(br))
             );
         }
     }

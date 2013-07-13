@@ -1,6 +1,9 @@
-use core::str;
+use std::str;
+use std::uint;
+use std::vec;
 
 use ll::Terminal;
+use ll::TidyBundle;
 use ll::{Character,Key,Style};  // TODO move these somewhere dealing with keys and text and terminal properties
 
 struct CanvasCell {
@@ -16,8 +19,8 @@ struct CanvasRow {
     cells: ~[CanvasCell],
 }
 
-struct Canvas {
-    term: @Terminal,
+struct Canvas<'self> {
+    term: &'self Terminal,
     start_row: uint,
     start_col: uint,
     cur_row: uint,
@@ -26,9 +29,10 @@ struct Canvas {
     width: uint,
 
     rows: ~[CanvasRow],
+    tidyables: TidyBundle<'self>,
 }
 
-pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, width: uint) -> Canvas {
+pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: uint, height: uint, width: uint) -> ~Canvas<'terminal> {
     let rows = vec::from_fn(height, |_row| {
         CanvasRow{
             is_dirty: false,
@@ -43,7 +47,7 @@ pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, w
             }),
         }
     });
-    return Canvas{
+    return ~Canvas{
         term: term,
 
         start_row: start_row,
@@ -54,10 +58,36 @@ pub fn Canvas(term: @Terminal, start_row: uint, start_col: uint, height: uint, w
         width: width,
 
         rows: rows,
+        tidyables: TidyBundle{ tidy_termcaps: ~[], tidy_termstates: ~[] },
     };
 }
 
-impl Canvas {
+impl<'self> Canvas<'self> {
+    // -------------------------------------------------------------------------
+    // Creation
+
+    pub fn spawn(&self, start_row: uint, start_col: uint, height: uint, width: uint) -> ~Canvas {
+        // TODO verify new height/width will fit?  or don't?  at least verify
+        // h/w aren't negative or zero
+        let real_height;
+        if height == 0 {
+            real_height = self.height - start_row;
+        }
+        else {
+            real_height = height;
+        }
+
+        let real_width;
+        if width == 0 {
+            real_width = self.width - start_col;
+        }
+        else {
+            real_width = width;
+        }
+
+        fail!(~"todo not done yet");
+    }
+
     // -------------------------------------------------------------------------
     // Accessors
 
@@ -82,11 +112,11 @@ impl Canvas {
     pub fn clear(&mut self) {
         // TODO clearing the screen can be done with a single termcap, but how
         // do i remember that
-        for self.rows.each_mut |row| {
+        for self.rows.mut_iter().advance |row| {
             row.is_dirty = true;
             row.last_dirty = self.width - 1;
             row.first_dirty = 0;
-            for row.cells.each_mut |cell| {
+            for row.cells.mut_iter().advance |cell| {
                 *cell = CanvasCell{
                     dirty: true,
                     glyph: ' ',
@@ -97,7 +127,7 @@ impl Canvas {
     }
 
     pub fn attrwrite(&mut self, s: &str, style: Style) {
-        for str::each_char(s) |glyph| {
+        for s.iter().advance |glyph| {
             if glyph == '\n' {
                 // TODO this probably needs (a) more cases, (b) termcap
                 // influence
@@ -253,7 +283,7 @@ impl Canvas {
                 fail!(fmt!("junk byte %?", byte));
             }
 
-            bytes += self.term.in_file.read_bytes(need_more);
+            bytes.push_all_move(self.term.in_file.read_bytes(need_more));
             // TODO umm this only works for utf8
             let decoded = str::from_bytes(bytes);
             if decoded.len() != 1 {
@@ -271,10 +301,10 @@ impl Canvas {
         loop {
             let (maybe_key, remaining_bytes) = self.term.keypress_trie.find_prefix(bytes);
             match maybe_key {
-                option::Some(key) => {
+                Some(key) => {
                     return key;
                 }
-                option::None => (),
+                None => (),
             }
             // XXX right now we are discarding any leftover bytes -- but we also only read one at a time so there are never leftovers
             // bytes = remaining_bytes;

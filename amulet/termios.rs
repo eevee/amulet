@@ -1,4 +1,5 @@
-use core::libc::{c_int,c_uint,c_ushort,c_void};
+use std::libc::{c_int,c_uint,c_ushort,c_void};
+use std::ptr;
 
 // -----------------------------------------------------------------------------
 // Platform-specific implementations
@@ -11,7 +12,8 @@ use core::libc::{c_int,c_uint,c_ushort,c_void};
 
 #[cfg(target_os="linux")]
 mod imp {
-    use core::libc::{c_int,c_uint,c_ushort,c_void};
+    use std::libc::{c_int,c_uint,c_ushort,c_void};
+    use std::ptr;
 
     static NCCS: int = 32;
     type cc_t = c_int;
@@ -172,7 +174,7 @@ mod imp {
     pub fn request_terminal_size(fd: c_int) -> (uint, uint) {
         let size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
 
-        let res = unsafe { ioctl_p(fd, TIOCGWINSZ, ptr::addr_of(&size) as *c_void) };
+        let res = unsafe { ioctl_p(fd, TIOCGWINSZ, ptr::to_unsafe_ptr(&size) as *c_void) };
 
         // XXX return value is -1 on failure
         // returns width, height
@@ -202,7 +204,7 @@ pub struct TidyTerminalState {
 
 #[unsafe_destructor]
 impl Drop for TidyTerminalState {
-    fn finalize (&self) {
+    fn drop(&self) {
         self.restore_term();
     }
 }
@@ -212,7 +214,7 @@ pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
 
     // TODO this has a retval, but...  eh...
     unsafe {
-        tcgetattr(fd as c_int, ptr::addr_of(&c_termios));
+        tcgetattr(fd as c_int, ptr::to_unsafe_ptr(&c_termios));
     }
 
     return TidyTerminalState{
@@ -226,7 +228,7 @@ pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
 impl TidyTerminalState {
     fn restore_term (&self) {
         unsafe {
-            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&self.c_termios_orig));
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::to_unsafe_ptr(&self.c_termios_orig));
         }
     }
 
@@ -312,7 +314,7 @@ impl TidyTerminalState {
             // is there to do about it
             // TODO do i want this in a separate 'commit()' method?  for
             // chaining etc?
-            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::addr_of(&*self.c_termios_cur));
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::to_unsafe_ptr(&*self.c_termios_cur));
         }
     }
 }
