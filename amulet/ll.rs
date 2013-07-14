@@ -304,6 +304,9 @@ impl Terminal {
         // have an escaped % or something.  Best do the whole formatting thing.
         self._write_capx(cap_name, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
+    pub fn write_cap1(&self, cap_name: &str, arg1: int) {
+        self._write_capx(cap_name, arg1 as c_long, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
     fn write_cap2(&self, cap_name: &str, arg1: int, arg2: int) {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }

@@ -6,6 +6,12 @@
 
 extern mod amulet;
 
+use std::libc;
+use std::io;
+use std::os;
+use std::path::Path;
+use std::result;
+
 /* pager functionality by Joseph Spainhou <spainhou@bellsouth.net> */
 
 fn main() {
@@ -18,7 +24,7 @@ fn main() {
     }
 
     let fh;
-    match io::file_reader(&path::Path(args[1])) {
+    match io::file_reader(&Path(args[1])) {
         result::Ok(res) => { fh = res; }
         result::Err(msg) => {
             io::println(msg);
@@ -37,8 +43,12 @@ fn main() {
         let bold = plain.bold();
         let mut cur_style = &plain;
 
-        while ! fh.eof() {
+        loop {
             ch = fh.read_byte();
+            if fh.eof() {
+                break;
+            }
+
             let (row, col) = canvas.position();
 
             if row == rows - 1 {
@@ -68,5 +78,7 @@ fn main() {
 
             prev = ch;
         }
+
+        canvas.pause();
     }
 }

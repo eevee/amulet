@@ -15,7 +15,7 @@ fn main() {
 
         let buf: ~str;
 
-        canvas.move(rows / 2, (cols - str::len(mesg)) / 2);
+        canvas.move(rows / 2, (cols - mesg.len()) / 2);
         canvas.write(mesg);
         canvas.repaint();
 

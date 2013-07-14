@@ -169,6 +169,20 @@ impl<'self> Canvas<'self> {
         }
     }
 
+    pub fn restyle(&mut self, style: Style) {
+        let row = &mut self.rows[self.cur_row];
+        row.cells[self.cur_col].style = copy style;
+
+        // TODO this is basically duplicated from above
+        row.is_dirty = true;
+        if self.cur_col > row.last_dirty {
+            row.last_dirty = self.cur_col;
+        }
+        if self.cur_col < row.first_dirty {
+            row.first_dirty = self.cur_col;
+        }
+    }
+
     pub fn write(&mut self, s: &str) {
         self.attrwrite(s, Style());
     }
@@ -179,6 +193,7 @@ impl<'self> Canvas<'self> {
         //self.term.write_cap2("cup", self.start_col as int, self.start_row as int);
 
         let mut is_bold = false;
+        let mut fg = 0;
 
         for uint::range(0, self.height) |row_i| {
             let row = &mut self.rows[row_i];
@@ -202,6 +217,22 @@ impl<'self> Canvas<'self> {
                     // to turn off bold/underline individually  :|
                     self.term.write_cap("sgr0");
                     is_bold = false;
+                }
+
+                if cell.style.fg_color != fg {
+                    fg = cell.style.fg_color;
+
+                    // Replace -1 with an arbitrarily large number, which
+                    // apparently functions as resetting to the default color
+                    // with setaf.  Maybe.
+                    // TODO i am not sure how reliable this is
+                    let actual_fg = match fg {
+                        -1 => 65535,
+                        _ => fg,
+                    };
+                    // TODO what if setaf doesn't exist?  fall back to setf i
+                    // guess, but what's the difference?
+                    self.term.write_cap1("setaf", actual_fg);
                 }
 
                 self.term.write(fmt!("%c", cell.glyph));

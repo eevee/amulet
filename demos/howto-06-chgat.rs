@@ -6,18 +6,19 @@
 
 extern mod amulet;
 
+use amulet::ll::Style;
+
 fn main() {
-    let window = amulet::ll::Terminal().enter_fullscreen();
+    let mut canvas = amulet::ll::Terminal().enter_fullscreen();
 
-    amulet::ll::define_color_pair(1, amulet::c::COLOR_CYAN, amulet::c::COLOR_BLACK);
-    window.write("A big string which I didn't care to type fully");
+    canvas.write("A big string which I didn't care to type fully");
 
-    window.mv(0, 0);
-    // First: Number of characters to update (-1 means until end of line)
-    // Second: Attribute bitmask
-    // Third: Color index to use
-    window.restyle(-1, amulet::c::A_BLINK as int, 1);
+    canvas.move(0, 0);
+    // TODO the original curses function also takes an argument for how many
+    // characters to change, with -1 meaning "to end of line" (which i am not
+    // in love with)
+    canvas.restyle(Style().fg(13));
 
-    window.repaint();
-    window.pause();
+    canvas.repaint();
+    canvas.pause();
 }
