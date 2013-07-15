@@ -386,13 +386,13 @@ impl Terminal {
         tidy_termstate.cbreak();
 
         let mut canv = Canvas(self, 0, 0, self.height(), self.width());
-        cb(canv);
+        cb(&mut canv);
     }
 
     // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
     // responsibility!  If you don't do it in a drop, you risk leaving the
     // terminal in a fucked-up state on early exit!
-    pub fn enter_fullscreen<'r>(&'r self) -> ~Canvas<'r> {
+    pub fn enter_fullscreen<'r>(&'r self) -> Canvas<'r> {
         // Same stuff as above.  Enter fullscreen; enter keypad mode; clear the
         // screen.
         let tidy_cup = self.write_tidy_cap("smcup", "rmcup");

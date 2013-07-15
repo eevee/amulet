@@ -10,7 +10,7 @@ use std::uint;
 
 fn main() {
     let term = amulet::ll::Terminal();
-    let mut canvas = term.enter_fullscreen();
+    let mut canvas = ~term.enter_fullscreen();
 
     let height = 3;
     let width = 10;
@@ -55,7 +55,7 @@ fn main() {
 }
 
 fn create_newwin(canvas: &amulet::canvas::Canvas, height: uint, width: uint, starty: uint, startx: uint) -> ~amulet::canvas::Canvas {
-    let mut local_win = canvas.spawn(startx, starty, width, height);
+    let mut local_win = ~canvas.spawn(startx, starty, width, height);
     // 0,0 gives default chars for the vertical and horizontal lines
     //local_win.set_box(0 as char, 0 as char);
     // TODO: box borders don't belong on Canvas since they are more a UI thing.

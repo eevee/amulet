@@ -32,7 +32,7 @@ struct Canvas<'self> {
     tidyables: TidyBundle<'self>,
 }
 
-pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: uint, height: uint, width: uint) -> ~Canvas<'terminal> {
+pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: uint, height: uint, width: uint) -> Canvas<'terminal> {
     let rows = vec::from_fn(height, |_row| {
         CanvasRow{
             is_dirty: false,
@@ -47,7 +47,7 @@ pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: 
             }),
         }
     });
-    return ~Canvas{
+    return Canvas{
         term: term,
 
         start_row: start_row,
@@ -66,7 +66,7 @@ impl<'self> Canvas<'self> {
     // -------------------------------------------------------------------------
     // Creation
 
-    pub fn spawn(&self, start_row: uint, start_col: uint, height: uint, width: uint) -> ~Canvas {
+    pub fn spawn(&self, start_row: uint, start_col: uint, height: uint, width: uint) -> Canvas {
         // TODO verify new height/width will fit?  or don't?  at least verify
         // h/w aren't negative or zero
         let real_height;
