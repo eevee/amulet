@@ -537,30 +537,3 @@ fn cap_to_key(cap: ~str) -> Key {
         _ => SpecialKey(KEY_UNKNOWN),
     };
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Misc that should probably go away
-
-/** Returns the screen size as (rows, columns). */
-pub fn screen_size() -> (uint, uint) {
-    return (c::LINES as uint, c::COLS as uint);
-}
-
-// Attribute definition
-
-pub fn define_color_pair(color_index: int, fg: c_short, bg: c_short) {
-    // TODO return value
-    unsafe {
-        c::init_pair(color_index as c_short, fg, bg);
-    }
-}
-
-
-
-
-fn __char_to_cchar_t(ch: char) -> c::cchar_t {
-    return c::cchar_t{
-        attr: c::A_NORMAL as c::attr_t,
-        chars: [ch as wchar_t, 0, 0, 0, 0],
-    };
-}
