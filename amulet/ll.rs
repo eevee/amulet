@@ -61,7 +61,7 @@ struct Terminal {
     //term_type: ~str,
 }
 
-pub fn Terminal() -> @Terminal {
+pub fn Terminal() -> Terminal {
     let error_code: c_int = 0;
     // NULL first arg means read TERM from env (TODO).
     // second arg is a fd to spew to on error, but it's not used when there's
@@ -110,7 +110,7 @@ pub fn Terminal() -> @Terminal {
         }
     }
 
-    let term = @Terminal{
+    return Terminal{
         // TODO would be nice to parametrize these, but Reader and Writer do
         // not yet expose a way to get the underlying fd, which makes the API
         // sucky
@@ -124,8 +124,6 @@ pub fn Terminal() -> @Terminal {
         c_terminfo: terminfo,
         tidy_termstate: termios::TidyTerminalState(0),
     };
-
-    return term;
 }
 #[unsafe_destructor]
 impl Drop for Terminal {
@@ -365,7 +363,7 @@ impl Terminal {
 
     // Full-screen
 
-    pub fn fullscreen_canvas(@self, cb: &fn(&mut Canvas)) {
+    pub fn fullscreen_canvas(&self, cb: &fn(&mut Canvas)) {
         // Enter fullscreen
         let _tidy_cup = self.write_tidy_cap("smcup", "rmcup");
 

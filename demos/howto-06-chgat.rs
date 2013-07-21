@@ -9,7 +9,8 @@ extern mod amulet;
 use amulet::ll::Style;
 
 fn main() {
-    let mut canvas = amulet::ll::Terminal().enter_fullscreen();
+    let term = amulet::ll::Terminal();
+    let mut canvas = term.enter_fullscreen();
 
     canvas.write("A big string which I didn't care to type fully");
 
