@@ -9,7 +9,7 @@ extern mod amulet;
 fn main() {
     let bold = amulet::ll::Style().bold();
 
-    let term = amulet::ll::Terminal();
+    let term = amulet::Terminal::new();
     do term.fullscreen_canvas |canvas| {
         // TODO implement me -- right now there's NEVER echo, so
         // TODO also i don't like this curses-style api; maybe a "set_options"

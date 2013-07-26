@@ -26,14 +26,14 @@ extern {
 
 
 /** Prints a given termcap sequence when it goes out of scope. */
-struct TidyTermcap<'self> {
-    term: &'self Terminal,
+struct TidyTermcap {
+    terminfo: @TerminalInfo,
     cap: &'static str,
 }
 #[unsafe_destructor]
-impl<'self> Drop for TidyTermcap<'self> {
+impl Drop for TidyTermcap {
     fn drop(&self) {
-        self.term.write_cap(self.cap);
+        self.terminfo.write_cap(self.cap);
     }
 }
 
@@ -41,13 +41,13 @@ impl<'self> Drop for TidyTermcap<'self> {
  * handle borrowed pointers to traits very well; see
  * https://github.com/mozilla/rust/issues/5708
  */
-pub struct TidyBundle<'self> {
-    tidy_termcaps: ~[TidyTermcap<'self>],
+pub struct TidyBundle {
+    tidy_termcaps: ~[TidyTermcap],
     tidy_termstates: ~[termios::TidyTerminalState],
 }
 
 
-struct Terminal {
+struct TerminalInfo {
     in_fd: c_int,
     in_file: @io::Reader,
     out_fd: c_int,
@@ -61,77 +61,79 @@ struct Terminal {
     //term_type: ~str,
 }
 
-pub fn Terminal() -> Terminal {
-    let error_code: c_int = 0;
-    // NULL first arg means read TERM from env (TODO).
-    // second arg is a fd to spew to on error, but it's not used when there's
-    // an error pointer.
-    // third arg is a var to stick the error code in.
-    // TODO allegedly setupterm doesn't work on BSD?
-    unsafe {
-        let res = c::setupterm(ptr::null(), -1, ptr::to_unsafe_ptr(&error_code));
-
-        if res != c::OK {
-            if error_code == -1 {
-                fail!(~"Couldn't find terminfo database");
-            }
-            else if error_code == 0 {
-                fail!(~"Couldn't identify terminal");
-            }
-            else if error_code == 1 {
-                // The manual puts this as "terminal is hard-copy" but come on.
-                fail!(~"Terminal appears to be made of paper");
-            }
-            else {
-                fail!(~"Something is totally fucked");
-            }
-        }
-    }
-
-    // Okay; now terminfo is sitting in a magical global somewhere.  Snag a
-    // pointer to it.
-    let terminfo = c::cur_term;
-
-    let keypress_trie = Trie();
-    let mut p: **c_char = ptr::to_unsafe_ptr(&c::strnames[0]);
-    unsafe {
-        while *p != ptr::null() {
-            let capname = str::raw::from_c_str(*p);
-
-            if capname[0] == "k"[0] {
-                let cap = c::tigetstr(*p);
-                if cap != ptr::null() {
-                    let cap_key = vec::raw::from_buf_raw(cap, libc::strlen(cap) as uint).map(|el| *el as u8);
-                    keypress_trie.insert(cap_key, cap_to_key(capname));
-                }
-            }
-
-            p = ptr::offset(p, 1);
-        }
-    }
-
-    return Terminal{
-        // TODO would be nice to parametrize these, but Reader and Writer do
-        // not yet expose a way to get the underlying fd, which makes the API
-        // sucky
-        in_fd: 0,
-        in_file: io::stdin(),
-        out_fd: 1,
-        out_file: io::stdout(),
-
-        keypress_trie: keypress_trie,
-
-        c_terminfo: terminfo,
-        tidy_termstate: termios::TidyTerminalState(0),
-    };
-}
 #[unsafe_destructor]
-impl Drop for Terminal {
+impl Drop for TerminalInfo {
     fn drop(&self) {
         self.tidy_termstate.restore();
     }
 }
-impl Terminal {
+impl TerminalInfo {
+    pub fn new() -> @TerminalInfo {
+        let error_code: c_int = 0;
+        // NULL first arg means read TERM from env (TODO).
+        // second arg is a fd to spew to on error, but it's not used when there's
+        // an error pointer.
+        // third arg is a var to stick the error code in.
+        // TODO allegedly setupterm doesn't work on BSD?
+        unsafe {
+            let res = c::setupterm(ptr::null(), -1, ptr::to_unsafe_ptr(&error_code));
+
+            if res != c::OK {
+                if error_code == -1 {
+                    fail!(~"Couldn't find terminfo database");
+                }
+                else if error_code == 0 {
+                    fail!(~"Couldn't identify terminal");
+                }
+                else if error_code == 1 {
+                    // The manual puts this as "terminal is hard-copy" but come on.
+                    fail!(~"Terminal appears to be made of paper");
+                }
+                else {
+                    fail!(~"Something is totally fucked");
+                }
+            }
+        }
+
+        // Okay; now terminfo is sitting in a magical global somewhere.  Snag a
+        // pointer to it.
+        let terminfo = c::cur_term;
+
+        let keypress_trie = Trie();
+        let mut p: **c_char = ptr::to_unsafe_ptr(&c::strnames[0]);
+        unsafe {
+            while *p != ptr::null() {
+                let capname = str::raw::from_c_str(*p);
+
+                if capname[0] == "k"[0] {
+                    let cap = c::tigetstr(*p);
+                    if cap != ptr::null() {
+                        let cap_key = vec::raw::from_buf_raw(cap, libc::strlen(cap) as uint).map(|el| *el as u8);
+                        keypress_trie.insert(cap_key, cap_to_key(capname));
+                    }
+                }
+
+                p = ptr::offset(p, 1);
+            }
+        }
+
+        return @TerminalInfo{
+            // TODO would be nice to parametrize these, but Reader and Writer do
+            // not yet expose a way to get the underlying fd, which makes the API
+            // sucky
+            in_fd: 0,
+            in_file: io::stdin(),
+            out_fd: 1,
+            out_file: io::stdout(),
+
+            keypress_trie: keypress_trie,
+
+            c_terminfo: terminfo,
+            tidy_termstate: termios::TidyTerminalState(0),
+        };
+    }
+
+
     // ------------------------------------------------------------------------
     // Capability inspection
     // TODO ideally, ultimately, every useful cap will be covered here...
@@ -305,107 +307,33 @@ impl Terminal {
     pub fn write_cap1(&self, cap_name: &str, arg1: int) {
         self._write_capx(cap_name, arg1 as c_long, 0, 0, 0, 0, 0, 0, 0, 0);
     }
-    fn write_cap2(&self, cap_name: &str, arg1: int, arg2: int) {
+    pub fn write_cap2(&self, cap_name: &str, arg1: int, arg2: int) {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    fn write_tidy_cap<'r>(&'r self, do_cap: &str, undo_cap: &'static str) -> TidyTermcap<'r> {
+    pub fn write_tidy_cap(@self, do_cap: &str, undo_cap: &'static str) -> TidyTermcap {
         self.write_cap(do_cap);
 
-        return TidyTermcap{ term: self, cap: undo_cap };
+        return TidyTermcap{ terminfo: self, cap: undo_cap };
     }
 
     // TODO should capabilities just have a method apiece, like blessings?
 
-
-
     // Output
 
     pub fn write(&self, s: &str) {
-        io::stdout().flush();
+        self.out_file.flush();
         // TODO well.  should be a bit more flexible, i guess.
-        io::print(s);
-        io::stdout().flush();
+        self.out_file.write_str(s);
+        self.out_file.flush();
     }
 
-    pub fn attrwrite(&self, s: &str, style: Style) {
-        // TODO try to cut down on the amount of back-and-forth between c
-        // strings and rust strings all up in here
-        if style.is_underline {
-            self.write_cap("smul");
-        }
-
-        // TODO this may need some escaping or whatever -- or maybe that
-        // belongs in write()
-        self.write(s);
-
-        // Clean up after ourselves: reset style to default
-        // TODO this is ripe for some optimizing
-        self.write_cap("sgr0");
-    }
 
 
     // Some stuff
     pub fn move(&self, x: uint, y: uint) {
         // TODO check for existence of cup
         self.write_cap2("cup", y as int, x as int);
-    }
-
-    pub fn at(&self, x: uint, y: uint, cb: &fn()) {
-        self.write_cap("sc");  // save cursor
-        // TODO check for existence of cup
-        self.write_cap2("cup", y as int, x as int);
-
-        cb();
-
-        self.write_cap("rc");  // restore cursor
-    }
-
-    // Full-screen
-
-    pub fn fullscreen_canvas(&self, cb: &fn(&mut Canvas)) {
-        // Enter fullscreen
-        let _tidy_cup = self.write_tidy_cap("smcup", "rmcup");
-
-        // Enable keypad mode
-        let _tidy_kx = self.write_tidy_cap("smkx", "rmkx");
-
-        // And clear the screen first
-        self.write_cap("clear");
-
-        // TODO intrflush, or is that a curses thing?
-
-        // TODO so, we need to switch to raw mode *some*where.  is this an
-        // appropriate place?  i assume if you have a fullscreen app then you
-        // want to get keypresses.
-        // TODO seems weird to create a second one of these.  stick a
-        // .checkpoint() on the one attached to the terminal?
-        let tidy_termstate = termios::TidyTerminalState(self.in_fd);
-        tidy_termstate.cbreak();
-
-        let mut canv = Canvas(self, 0, 0, self.height(), self.width());
-        cb(&mut canv);
-    }
-
-    // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
-    // responsibility!  If you don't do it in a drop, you risk leaving the
-    // terminal in a fucked-up state on early exit!
-    pub fn enter_fullscreen<'r>(&'r self) -> Canvas<'r> {
-        // Same stuff as above.  Enter fullscreen; enter keypad mode; clear the
-        // screen.
-        let tidy_cup = self.write_tidy_cap("smcup", "rmcup");
-        let tidy_kx = self.write_tidy_cap("smkx", "rmkx");
-        self.write_cap("clear");
-
-        // TODO intrflush, as above...?
-
-        let tidy_termstate = termios::TidyTerminalState(self.in_fd);
-        tidy_termstate.cbreak();
-
-        let mut canv = Canvas(self, 0, 0, self.height(), self.width());
-        canv.tidyables.tidy_termcaps.push_all_move(~[tidy_kx, tidy_cup]);
-        canv.tidyables.tidy_termstates.push(tidy_termstate);
-        return canv;
     }
 }
 

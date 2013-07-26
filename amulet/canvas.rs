@@ -2,9 +2,10 @@ use std::str;
 use std::uint;
 use std::vec;
 
-use ll::Terminal;
 use ll::TidyBundle;
 use ll::{Character,Key,Style};  // TODO move these somewhere dealing with keys and text and terminal properties
+use ll::TerminalInfo;
+use terminal::Terminal;
 
 struct CanvasCell {
     dirty: bool,
@@ -19,8 +20,8 @@ struct CanvasRow {
     cells: ~[CanvasCell],
 }
 
-struct Canvas<'self> {
-    term: &'self Terminal,
+struct Canvas {
+    terminfo: @TerminalInfo,
     start_row: uint,
     start_col: uint,
     cur_row: uint,
@@ -29,10 +30,10 @@ struct Canvas<'self> {
     width: uint,
 
     rows: ~[CanvasRow],
-    tidyables: TidyBundle<'self>,
+    tidyables: TidyBundle,
 }
 
-pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: uint, height: uint, width: uint) -> Canvas<'terminal> {
+pub fn Canvas(terminfo: @TerminalInfo, start_row: uint, start_col: uint, height: uint, width: uint) -> Canvas {
     let rows = vec::from_fn(height, |_row| {
         CanvasRow{
             is_dirty: false,
@@ -48,7 +49,7 @@ pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: 
         }
     });
     return Canvas{
-        term: term,
+        terminfo: terminfo,
 
         start_row: start_row,
         start_col: start_col,
@@ -62,7 +63,7 @@ pub fn Canvas<'terminal>(term: &'terminal Terminal, start_row: uint, start_col: 
     };
 }
 
-impl<'self> Canvas<'self> {
+impl Canvas {
     // -------------------------------------------------------------------------
     // Creation
 
@@ -190,7 +191,7 @@ impl<'self> Canvas<'self> {
     pub fn repaint(&mut self) {
         // TODO wrap this
         // TODO check for existence of cup?  fallback?
-        //self.term.write_cap2("cup", self.start_col as int, self.start_row as int);
+        //self.terminfo.write_cap2("cup", self.start_col as int, self.start_row as int);
 
         let mut is_bold = false;
         let mut fg = 0;
@@ -202,20 +203,20 @@ impl<'self> Canvas<'self> {
             }
 
             // TODO the terminal could track its cursor position and optimize this move away
-            self.term.move(self.start_col + row.first_dirty, self.start_row + row_i);
+            self.terminfo.move(self.start_col + row.first_dirty, self.start_row + row_i);
             // TODO with this level of optimization, imo, there should also be a method for forcibly redrawing the entire screen from (presumed) scratch
             for uint::range(row.first_dirty, row.last_dirty + 1) |col| {
                 let cell = row.cells[col];
 
                 // Deal with formatting
                 if cell.style.is_bold && ! is_bold {
-                    self.term.write_cap("bold");
+                    self.terminfo.write_cap("bold");
                     is_bold = true;
                 }
                 else if is_bold && ! cell.style.is_bold {
                     // TODO this resets formatting entirely -- there's no way
                     // to turn off bold/underline individually  :|
-                    self.term.write_cap("sgr0");
+                    self.terminfo.write_cap("sgr0");
                     is_bold = false;
                 }
 
@@ -232,10 +233,10 @@ impl<'self> Canvas<'self> {
                     };
                     // TODO what if setaf doesn't exist?  fall back to setf i
                     // guess, but what's the difference?
-                    self.term.write_cap1("setaf", actual_fg);
+                    self.terminfo.write_cap1("setaf", actual_fg);
                 }
 
-                self.term.write(fmt!("%c", cell.glyph));
+                self.terminfo.write(fmt!("%c", cell.glyph));
                 row.cells[col].dirty = false;
             }
 
@@ -247,7 +248,7 @@ impl<'self> Canvas<'self> {
         // Clean up attribute settings when done
         // TODO optimization possibilities here if we remember the current cursor style -- which we may need to do anyway once we're tracking more than bold
         if is_bold {
-            self.term.write_cap("sgr0");
+            self.terminfo.write_cap("sgr0");
         }
 
         // TODO move the cursor to its original position if that's not where it is now
@@ -265,7 +266,7 @@ impl<'self> Canvas<'self> {
         // etc.  it's hilariously sad.
         // TODO should have a timeout after Esc...  et al.?
         // TODO this could probably stand to be broken out a bit
-        let raw_byte = self.term.in_file.read_byte();
+        let raw_byte = self.terminfo.in_file.read_byte();
         if raw_byte < 0 {
             // TODO how can this actually happen?
             fail!(~"couldn't read a byte?!");
@@ -314,7 +315,7 @@ impl<'self> Canvas<'self> {
                 fail!(fmt!("junk byte %?", byte));
             }
 
-            bytes.push_all_move(self.term.in_file.read_bytes(need_more));
+            bytes.push_all_move(self.terminfo.in_file.read_bytes(need_more));
             // TODO umm this only works for utf8
             let decoded = str::from_bytes(bytes);
             if decoded.len() != 1 {
@@ -327,10 +328,10 @@ impl<'self> Canvas<'self> {
         // XXX urwid has if byte > 127 && byte < 256...  but that's covered
         // above because we are always utf8.
 
-        
+
         // OK, check for cute terminal escapes
         loop {
-            let (maybe_key, remaining_bytes) = self.term.keypress_trie.find_prefix(bytes);
+            let (maybe_key, remaining_bytes) = self.terminfo.keypress_trie.find_prefix(bytes);
             match maybe_key {
                 Some(key) => {
                     return key;
@@ -344,7 +345,7 @@ impl<'self> Canvas<'self> {
                 break;
             }
             // XXX again, why does this return an int?  can it be negative on error?
-            bytes.push(self.term.in_file.read_byte() as u8);
+            bytes.push(self.terminfo.in_file.read_byte() as u8);
         }
 
 

@@ -34,7 +34,7 @@ fn main() {
 
     // cannot open input file...
 
-    let term = amulet::ll::Terminal();
+    let term = amulet::Terminal::new();
     do term.fullscreen_canvas |canvas| {
         let mut ch;
         let (rows, _cols) = canvas.size();

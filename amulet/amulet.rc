@@ -4,6 +4,8 @@
 
 extern mod std;
 
+pub use terminal::Terminal;
+
 #[legacy_exports]
 pub mod c;
 // TODO unraw
@@ -12,4 +14,5 @@ pub mod c;
 pub mod canvas;
 pub mod ll;
 pub mod termios;
+pub mod terminal;
 mod trie;

@@ -9,7 +9,7 @@ extern mod amulet;
 fn main() {
     let mesg = "Enter a string: ";
 
-    let term = amulet::ll::Terminal();
+    let term = amulet::Terminal::new();
     do term.fullscreen_canvas |canvas| {
         let (rows, cols) = canvas.size();
 

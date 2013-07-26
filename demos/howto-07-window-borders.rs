@@ -9,7 +9,7 @@ extern mod amulet;
 use std::uint;
 
 fn main() {
-    let term = amulet::ll::Terminal();
+    let term = amulet::Terminal::new();
     let mut canvas = ~term.enter_fullscreen();
 
     let height = 3;

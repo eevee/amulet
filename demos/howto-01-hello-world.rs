@@ -7,7 +7,7 @@
 extern mod amulet;
 
 fn main() {
-    let term = amulet::ll::Terminal();
+    let term = amulet::Terminal::new();
     do term.fullscreen_canvas |canvas| {
         canvas.write("Hello World !!!");
         canvas.repaint();

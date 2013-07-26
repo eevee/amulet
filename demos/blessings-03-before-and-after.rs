@@ -7,7 +7,7 @@
 extern mod amulet;
 
 fn main() {
-    let term = amulet::ll::Terminal();
+    let term = amulet::Terminal::new();
 
     do term.at(0, term.height() - 1) {
         term.write("This is ");
