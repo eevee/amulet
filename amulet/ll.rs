@@ -1,21 +1,16 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-use std::libc::{c_char,c_int,c_long,c_schar,c_short,c_void,size_t,wchar_t};
-use std::io::ReaderUtil;
+use std::libc::{c_char,c_int,c_long,c_short};
 use std::ptr;
 use std::str;
 use std::libc;
 use std::io;
 use std::cast;
-use std::vec::raw;
 use std::vec;
-use std::sys;
 
 use c;
 use termios;
 use trie::Trie;
-
-use canvas::Canvas;
 
 extern {
     fn setlocale(category: c_int, locale: *c_char) -> *c_char;

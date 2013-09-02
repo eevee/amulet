@@ -13,7 +13,6 @@ use std::hashmap::HashMap;
 use std::io::WriterUtil;
 use std::to_bytes::IterBytes;
 use std::vec;
-use std::uint;
 use std::io;
 
 pub struct Trie<K, V> {
@@ -84,7 +83,7 @@ impl<T: Eq + IterBytes + Hash + Clone + Freeze + 'static, U: Clone + 'static> Tr
     }
 
     fn _print_all(&self) {
-        self._print_all_impl(~[]);
+        self._print_all_impl([]);
     }
     fn _print_all_impl(&self, key_prefix: &[T]) {
         match self.value.clone() {

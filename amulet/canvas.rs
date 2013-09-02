@@ -1,11 +1,9 @@
 use std::str;
-use std::uint;
 use std::vec;
 
 use ll::TidyBundle;
 use ll::{Character,Key,Style};  // TODO move these somewhere dealing with keys and text and terminal properties
 use ll::TerminalInfo;
-use terminal::Terminal;
 
 struct CanvasCell {
     dirty: bool,
@@ -272,7 +270,7 @@ impl Canvas {
             fail!(~"couldn't read a byte?!");
         }
 
-        let mut byte = raw_byte as u8;
+        let byte = raw_byte as u8;
         let mut bytes = ~[byte];
 
         if 32 <= byte && byte <= 126 {
@@ -331,7 +329,7 @@ impl Canvas {
 
         // OK, check for cute terminal escapes
         loop {
-            let (maybe_key, remaining_bytes) = self.terminfo.keypress_trie.find_prefix(bytes);
+            let (maybe_key, _remaining_bytes) = self.terminfo.keypress_trie.find_prefix(bytes);
             match maybe_key {
                 Some(key) => {
                     return key;

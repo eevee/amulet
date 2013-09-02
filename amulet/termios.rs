@@ -1,5 +1,5 @@
 use std::clone::Clone;
-use std::libc::{c_int,c_uint,c_ushort,c_void};
+use std::libc::c_int;
 use std::ptr;
 
 // -----------------------------------------------------------------------------
