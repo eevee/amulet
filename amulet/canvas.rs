@@ -113,11 +113,11 @@ impl Canvas {
     pub fn clear(&mut self) {
         // TODO clearing the screen can be done with a single termcap, but how
         // do i remember that
-        for self.rows.mut_iter().advance |row| {
+        for row in self.rows.mut_iter() {
             row.is_dirty = true;
             row.last_dirty = self.width - 1;
             row.first_dirty = 0;
-            for row.cells.mut_iter().advance |cell| {
+            for cell in row.cells.mut_iter() {
                 *cell = CanvasCell{
                     dirty: true,
                     glyph: ' ',
@@ -128,7 +128,7 @@ impl Canvas {
     }
 
     pub fn attrwrite(&mut self, s: &str, style: Style) {
-        for s.iter().advance |glyph| {
+        for glyph in s.iter() {
             if glyph == '\n' {
                 // TODO this probably needs (a) more cases, (b) termcap
                 // influence
@@ -148,7 +148,7 @@ impl Canvas {
                 row.cells[self.cur_col] = CanvasCell{
                     dirty: true,
                     glyph: glyph,
-                    style: copy style,
+                    style: style,
                 };
                 row.is_dirty = true;
                 if self.cur_col > row.last_dirty {
@@ -172,7 +172,7 @@ impl Canvas {
 
     pub fn restyle(&mut self, style: Style) {
         let row = &mut self.rows[self.cur_row];
-        row.cells[self.cur_col].style = copy style;
+        row.cells[self.cur_col].style = style;
 
         // TODO this is basically duplicated from above
         row.is_dirty = true;
@@ -196,7 +196,7 @@ impl Canvas {
         let mut is_bold = false;
         let mut fg = 0;
 
-        for uint::range(0, self.height) |row_i| {
+        for row_i in range(0, self.height) {
             let row = &mut self.rows[row_i];
             if ! row.is_dirty {
                 loop;
@@ -205,7 +205,7 @@ impl Canvas {
             // TODO the terminal could track its cursor position and optimize this move away
             self.terminfo.move(self.start_col + row.first_dirty, self.start_row + row_i);
             // TODO with this level of optimization, imo, there should also be a method for forcibly redrawing the entire screen from (presumed) scratch
-            for uint::range(row.first_dirty, row.last_dirty + 1) |col| {
+            for col in range(row.first_dirty, row.last_dirty + 1) {
                 let cell = row.cells[col];
 
                 // Deal with formatting

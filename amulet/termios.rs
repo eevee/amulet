@@ -1,3 +1,4 @@
+use std::clone::Clone;
 use std::libc::{c_int,c_uint,c_ushort,c_void};
 use std::ptr;
 
@@ -145,17 +146,30 @@ mod imp {
         c_ospeed: speed_t,      // output speed
     }
 
+    // deriving(Clone) doesn't work for fixed-size vectors (#7622)
+    impl Clone for termios {
+        fn clone(&self) -> termios {
+            return termios{
+                // ...also it's a syntax error to not have at least one pair
+                c_iflag: self.c_iflag,
+                ..*self
+            };
+        }
+    }
+
     // Need this to be able to create blank structs on the stack
-    pub static BLANK_TERMIOS: termios = termios{
-        c_iflag: 0,
-        c_oflag: 0,
-        c_cflag: 0,
-        c_lflag: 0,
-        c_line: 0,
-        c_cc: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        c_ispeed: 0,
-        c_ospeed: 0,
-    };
+    pub fn blank_termios() -> termios {
+        return termios{
+            c_iflag: 0,
+            c_oflag: 0,
+            c_cflag: 0,
+            c_lflag: 0,
+            c_line: 0,
+            c_cc: [0, ..32],
+            c_ispeed: 0,
+            c_ospeed: 0,
+        };
+    }
 
 
 
@@ -171,6 +185,7 @@ mod imp {
         fn ioctl_p(fd: c_int, request: c_int, arg1: *c_void) -> c_int;
     }
 
+    #[fixed_stack_segment]
     pub fn request_terminal_size(fd: c_int) -> (uint, uint) {
         let size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
 
@@ -209,8 +224,9 @@ impl Drop for TidyTerminalState {
     }
 }
 
+#[fixed_stack_segment]
 pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
-    let c_termios = copy imp::BLANK_TERMIOS;
+    let c_termios = imp::blank_termios();
 
     // TODO this has a retval, but...  eh...
     unsafe {
@@ -219,13 +235,14 @@ pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
 
     return TidyTerminalState{
         c_fd: fd as c_int,
-        c_termios_cur: @mut copy c_termios,
+        c_termios_cur: @mut c_termios.clone(),
         c_termios_orig: c_termios,
     };
 }
 
 // TODO: i want this impl only for ~T but that makes the drop not work
 impl TidyTerminalState {
+    #[fixed_stack_segment]
     fn restore_term (&self) {
         unsafe {
             tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::to_unsafe_ptr(&self.c_termios_orig));
@@ -235,7 +252,7 @@ impl TidyTerminalState {
     /** Explicitly restore the terminal to its pristine state. */
     pub fn restore(&self) {
         self.restore_term();
-        *self.c_termios_cur = copy self.c_termios_orig;
+        *self.c_termios_cur = self.c_termios_orig.clone();
     }
 
 
@@ -266,6 +283,7 @@ impl TidyTerminalState {
       * This is identical to raw mode, except that ^C and other signal keys
       * work as normal instead of going to the application.
       */
+    #[fixed_stack_segment]
     pub fn cbreak(&self) {
         self.c_termios_cur.c_iflag &= !(
             imp::IXON       // ignore XON/XOFF, i.e. ^S ^Q

@@ -6,7 +6,7 @@ use std::libc::*;
 // TODO less manual would be appreciated
 pub type TERMINAL = c_void;
 #[link_args = "-lncursesw"]
-pub extern {
+extern {
     pub static cur_term: *TERMINAL;
 
     // These are static arrays of unknown length, which is hard to express in
@@ -89,7 +89,7 @@ pub struct MEVENT {
     bstate: mmask_t,
 }
 #[link_args = "-lncursesw"]
-pub extern {
+extern {
     pub static acs_map: c_void;
     pub static curscr: *WINDOW;
     pub static newscr: *WINDOW;

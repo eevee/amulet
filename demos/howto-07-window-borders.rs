@@ -6,8 +6,6 @@
 
 extern mod amulet;
 
-use std::uint;
-
 fn main() {
     let term = amulet::Terminal::new();
     let mut canvas = ~term.enter_fullscreen();
@@ -60,7 +58,7 @@ fn create_newwin(canvas: &amulet::canvas::Canvas, height: uint, width: uint, sta
     //local_win.set_box(0 as char, 0 as char);
     // TODO: box borders don't belong on Canvas since they are more a UI thing.
     // probably a really good first widget though.
-    for uint::range(0, width) |_n| {
+    for _n in range(0, width) {
         local_win.write("box...\n");
     }
 

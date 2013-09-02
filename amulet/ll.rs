@@ -68,6 +68,7 @@ impl Drop for TerminalInfo {
     }
 }
 impl TerminalInfo {
+    #[fixed_stack_segment]
     pub fn new() -> @TerminalInfo {
         let error_code: c_int = 0;
         // NULL first arg means read TERM from env (TODO).
@@ -160,12 +161,13 @@ impl TerminalInfo {
     // ------------------------------------------------------------------------
     // Very-low-level capability inspection
 
+    #[fixed_stack_segment]
     fn flag_cap(&self, name: &str) -> bool {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let mut value = 0;
-            do str::as_c_str(name) |bytes| {
+            do name.to_c_str().with_ref |bytes| {
                 value = c::tigetflag(bytes);
             }
 
@@ -179,12 +181,13 @@ impl TerminalInfo {
         }
     }
 
+    #[fixed_stack_segment]
     fn numeric_cap(&self, name: &str) -> uint {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let mut value = -1;
-            do str::as_c_str(name) |bytes| {
+            do name.to_c_str().with_ref |bytes| {
                 value = c::tigetnum(bytes);
             }
 
@@ -201,12 +204,13 @@ impl TerminalInfo {
         }
     }
 
+    #[fixed_stack_segment]
     fn _string_cap_cstr(&self, name: &str) -> *c_char {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let mut value = ptr::null();
-            do str::as_c_str(name) |bytes| {
+            do name.to_c_str().with_ref |bytes| {
                 value = c::tigetstr(bytes);
             }
 
@@ -245,6 +249,7 @@ impl TerminalInfo {
      * missing arguments become zero.  No capability requires more than 9
      * arguments.
      */
+    #[fixed_stack_segment]
     fn format_cap(&self, name: &str, args: ~[int]) -> ~str {
         unsafe {
             c::set_curterm(self.c_terminfo);
@@ -268,6 +273,7 @@ impl TerminalInfo {
         }
     }
 
+    #[fixed_stack_segment]
     fn _write_capx(&self, name: &str,
             arg1: c_long, arg2: c_long, arg3: c_long,
             arg4: c_long, arg5: c_long, arg6: c_long,
@@ -380,6 +386,7 @@ impl Style {
         return Style{ bg_color: color, ..*self };
     }
 
+    #[fixed_stack_segment]
     fn c_value(&self) -> c_int {
         let mut rv: c_int = 0;
 
@@ -422,7 +429,8 @@ pub static NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color:
 // TODO: i don't know how to handle ctrl-/alt- sequences.
 // 1. i don't know how to represent them type-wise
 // 2. i don't know how to parse them!  they aren't in termcap.
-enum SpecialKey {
+#[deriving(Clone)]
+enum SpecialKeyCode {
     KEY_LEFT,
     KEY_RIGHT,
     KEY_UP,
@@ -433,9 +441,10 @@ enum SpecialKey {
     KEY_UNKNOWN,
 }
 
+#[deriving(Clone)]
 pub enum Key {
     Character(char),
-    SpecialKey(SpecialKey),
+    SpecialKey(SpecialKeyCode),
     FunctionKey(uint),
 }
 

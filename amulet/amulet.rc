@@ -6,11 +6,7 @@ extern mod std;
 
 pub use terminal::Terminal;
 
-#[legacy_exports]
 pub mod c;
-// TODO unraw
-// TODO unlegacy
-
 pub mod canvas;
 pub mod ll;
 pub mod termios;

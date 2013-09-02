@@ -14,6 +14,7 @@ use std::result;
 
 /* pager functionality by Joseph Spainhou <spainhou@bellsouth.net> */
 
+#[fixed_stack_segment]
 fn main() {
     let mut prev = 0;
 
