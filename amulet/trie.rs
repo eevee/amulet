@@ -23,7 +23,7 @@ pub struct Trie<K, V> {
 // don't be copyable
 #[unsafe_destructor]
 impl<K, V> Drop for Trie<K, V> {
-    fn drop(&self) {}
+    fn drop(&mut self) {}
 }
 
 /** Construct an empty trie. */

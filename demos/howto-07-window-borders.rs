@@ -6,6 +6,8 @@
 
 extern mod amulet;
 
+use amulet::canvas::Canvas;
+
 fn main() {
     let term = amulet::Terminal::new();
     let mut canvas = ~term.enter_fullscreen();
@@ -52,7 +54,7 @@ fn main() {
     }
 }
 
-fn create_newwin(canvas: &amulet::canvas::Canvas, height: uint, width: uint, starty: uint, startx: uint) -> ~amulet::canvas::Canvas {
+fn create_newwin(canvas: &Canvas, height: uint, width: uint, starty: uint, startx: uint) -> ~Canvas {
     let mut local_win = ~canvas.spawn(startx, starty, width, height);
     // 0,0 gives default chars for the vertical and horizontal lines
     //local_win.set_box(0 as char, 0 as char);
@@ -68,7 +70,7 @@ fn create_newwin(canvas: &amulet::canvas::Canvas, height: uint, width: uint, sta
     return local_win;
 }
 
-fn destroy_win(local_win: &mut amulet::canvas::Canvas) {
+fn destroy_win(local_win: &mut Canvas) {
     // 'box' won't erase the window; it'll leave the corners behind.
 
     // border's params are L, R, T, B, TL, TR, BL, BR

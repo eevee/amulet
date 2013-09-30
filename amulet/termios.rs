@@ -219,7 +219,7 @@ pub struct TidyTerminalState {
 
 #[unsafe_destructor]
 impl Drop for TidyTerminalState {
-    fn drop(&self) {
+    fn drop(&mut self) {
         self.restore_term();
     }
 }
