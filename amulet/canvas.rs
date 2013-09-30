@@ -315,7 +315,7 @@ impl Canvas {
 
             bytes.push_all_move(self.terminfo.in_file.read_bytes(need_more));
             // TODO umm this only works for utf8
-            let decoded = str::from_bytes(bytes);
+            let decoded = str::from_utf8(bytes);
             if decoded.len() != 1 {
                 fail!(~"unexpected decoded string length!");
             }
