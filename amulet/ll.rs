@@ -27,7 +27,7 @@ struct TidyTermcap {
 }
 #[unsafe_destructor]
 impl Drop for TidyTermcap {
-    fn drop(&self) {
+    fn drop(&mut self) {
         self.terminfo.write_cap(self.cap);
     }
 }
@@ -58,7 +58,7 @@ struct TerminalInfo {
 
 #[unsafe_destructor]
 impl Drop for TerminalInfo {
-    fn drop(&self) {
+    fn drop(&mut self) {
         self.tidy_termstate.restore();
     }
 }
@@ -172,7 +172,7 @@ impl TerminalInfo {
             }
 
             // Otherwise, is 0 or 1
-            return value as bool;
+            return value != 0;
         }
     }
 

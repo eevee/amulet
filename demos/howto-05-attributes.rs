@@ -16,7 +16,7 @@ use std::result;
 
 #[fixed_stack_segment]
 fn main() {
-    let mut prev = 0;
+    let mut prev = '0' as u8;
 
     let args = os::args();
     if args.len() != 2 {
@@ -37,7 +37,7 @@ fn main() {
 
     let term = amulet::Terminal::new();
     do term.fullscreen_canvas |canvas| {
-        let mut ch;
+        let mut ch : u8;
         let (rows, _cols) = canvas.size();
 
         let plain = amulet::ll::Style();
@@ -45,7 +45,7 @@ fn main() {
         let mut cur_style = &plain;
 
         loop {
-            ch = fh.read_byte();
+            ch = fh.read_byte() as u8;
             if fh.eof() {
                 break;
             }
