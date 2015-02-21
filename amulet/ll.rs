@@ -418,6 +418,7 @@ pub static NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color:
 // TODO: i don't know how to handle ctrl-/alt- sequences.
 // 1. i don't know how to represent them type-wise
 // 2. i don't know how to parse them!  they aren't in termcap.
+// TODO why does this even exist?  just make these all parts of the Key enum??
 #[derive(Clone, Show)]
 pub enum SpecialKeyCode {
     LEFT,
@@ -430,6 +431,7 @@ pub enum SpecialKeyCode {
     UNKNOWN,
 }
 
+// TODO "Show" doesn't really cut it; this should implement something debuggable
 #[derive(Clone, Show)]
 pub enum Key {
     Character(char),

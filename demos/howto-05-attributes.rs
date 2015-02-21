@@ -4,9 +4,9 @@
  * http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/attrib.html
  */
 
-extern mod amulet;
+extern crate amulet;
+extern crate libc;
 
-use std::libc;
 use std::io;
 use std::os;
 use std::path::Path;
@@ -20,7 +20,7 @@ fn main() {
 
     let args = os::args();
     if args.len() != 2 {
-        io::println(fmt!("Usage: %s <a C filename>", args[0]));
+        io::println(format!("Usage: {} <a C filename>", args[0]));
         unsafe { libc::exit(1) };
     }
 
@@ -35,51 +35,49 @@ fn main() {
 
     // cannot open input file...
 
-    let term = amulet::Terminal::new();
-    do term.fullscreen_canvas |canvas| {
-        let mut ch : u8;
-        let (rows, _cols) = canvas.size();
+    let mut term = amulet::Terminal::new();
+    let mut canvas = term.enter_fullscreen();
+    let mut ch : u8;
+    let (rows, _cols) = canvas.size();
 
-        let plain = amulet::ll::Style();
-        let bold = plain.bold();
-        let mut cur_style = &plain;
+    let plain = amulet::ll::Style();
+    let bold = plain.bold();
+    let mut cur_style = &plain;
 
-        loop {
-            ch = fh.read_byte() as u8;
-            if fh.eof() {
-                break;
-            }
-
-            let (row, col) = canvas.position();
-
-            if row == rows - 1 {
-                canvas.write("<-Press Any Key->");
-                canvas.repaint();
-                canvas.pause();
-                canvas.clear();
-                canvas.move(0, 0);
-            }
-
-            if prev as char == '/' && ch as char == '*' {
-                //canvas.write(#fmt("%c", ch as char));
-                cur_style = &bold;
-
-                canvas.move(row, col - 1);
-                canvas.attrwrite(fmt!("%c%c", prev as char, ch as char), *cur_style);
-            }
-            else {
-                canvas.attrwrite(fmt!("%c", ch as char), *cur_style);
-            }
-
-            canvas.repaint();
-
-            if prev as char == '*' && ch as char == '/' {
-                cur_style = &plain;
-            }
-
-            prev = ch;
+    loop {
+        ch = fh.read_byte() as u8;
+        if fh.eof() {
+            break;
         }
 
-        canvas.pause();
+        let (row, col) = canvas.position();
+
+        if row == rows - 1 {
+            canvas.write("<-Press Any Key->");
+            canvas.repaint();
+            canvas.pause();
+            canvas.clear();
+            canvas.move(0, 0);
+        }
+
+        if prev as char == '/' && ch as char == '*' {
+            cur_style = &bold;
+
+            canvas.move(row, col - 1);
+            canvas.attrwrite(format!("{}{}", prev as char, ch as char), *cur_style);
+        }
+        else {
+            canvas.attrwrite(format!("{}", ch as char), *cur_style);
+        }
+
+        canvas.repaint();
+
+        if prev as char == '*' && ch as char == '/' {
+            cur_style = &plain;
+        }
+
+        prev = ch;
     }
+
+    canvas.pause();
 }

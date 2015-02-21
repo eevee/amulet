@@ -4,13 +4,13 @@
  * https://github.com/erikrose/blessings/blob/master/README.rst
  */
 
-extern mod amulet;
+extern crate amulet;
 
 fn main() {
     let term = amulet::Terminal::new();
 
-    do term.at(0, term.height() - 1) {
+    term.at(0, term.height() - 1, |&:| {
         term.write("This is ");
         term.attrwrite("pretty!", amulet::ll::Style().underline());
-    }
+    });
 }

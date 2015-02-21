@@ -4,17 +4,17 @@
  * http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/attrib.html
  */
 
-extern mod amulet;
+extern crate amulet;
 
 use amulet::ll::Style;
 
 fn main() {
-    let term = amulet::Terminal::new();
+    let mut term = amulet::Terminal::new();
     let mut canvas = term.enter_fullscreen();
 
     canvas.write("A big string which I didn't care to type fully");
 
-    canvas.move(0, 0);
+    canvas.reposition(0, 0);
     // TODO the original curses function also takes an argument for how many
     // characters to change, with -1 meaning "to end of line" (which i am not
     // in love with)

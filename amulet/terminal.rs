@@ -30,7 +30,7 @@ impl<'a> Terminal<'a> {
     }
 
 
-    pub fn at(&self, x: usize, y: usize, cb: &fn()) {
+    pub fn at<F: Fn() -> ()>(&self, x: usize, y: usize, cb: F) {
         self.info.write_cap("sc");  // save cursor
         // TODO check for existence of cup
         self.info.write_cap2("cup", y as isize, x as isize);

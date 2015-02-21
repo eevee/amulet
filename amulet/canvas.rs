@@ -65,7 +65,7 @@ impl<'a, 'b> Canvas<'a, 'b> {
     // -------------------------------------------------------------------------
     // Creation
 
-    pub fn spawn(&self, start_row: usize, start_col: usize, height: usize, width: usize) -> Canvas {
+    pub fn spawn(&self, start_row: usize, start_col: usize, height: usize, width: usize) -> Canvas<'a, 'b> {
         // TODO verify new height/width will fit?  or don't?  at least verify
         // h/w aren't negative or zero
         let real_height;

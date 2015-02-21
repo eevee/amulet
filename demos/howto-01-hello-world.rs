@@ -4,13 +4,12 @@
  * http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/helloworld.html
  */
 
-extern mod amulet;
+extern crate amulet;
 
 fn main() {
-    let term = amulet::Terminal::new();
-    do term.fullscreen_canvas |canvas| {
-        canvas.write("Hello World !!!");
-        canvas.repaint();
-        canvas.pause();
-    }
+    let mut term = amulet::Terminal::new();
+    let mut canvas = term.enter_fullscreen();
+    canvas.write("Hello World !!!");
+    canvas.repaint();
+    canvas.pause();
 }
