@@ -3,12 +3,12 @@ use ll::Style;
 use ll::TerminalInfo;
 use termios;
 
-struct Terminal {
-    info: @TerminalInfo,
+pub struct Terminal<'a> {
+    info: TerminalInfo<'a>,
 }
 
-impl Terminal {
-    pub fn new() -> Terminal {
+impl<'a> Terminal<'a> {
+    pub fn new() -> Terminal<'a> {
         let info = TerminalInfo::new();
 
         return Terminal{
@@ -20,20 +20,20 @@ impl Terminal {
     // ------------------------------------------------------------------------
     // Inspection
     #[inline]
-    pub fn height(&self) -> uint {
+    pub fn height(&self) -> usize {
         return self.info.height();
     }
 
     #[inline]
-    pub fn width(&self) -> uint {
+    pub fn width(&self) -> usize {
         return self.info.width();
     }
 
 
-    pub fn at(&self, x: uint, y: uint, cb: &fn()) {
+    pub fn at(&self, x: usize, y: usize, cb: &fn()) {
         self.info.write_cap("sc");  // save cursor
         // TODO check for existence of cup
-        self.info.write_cap2("cup", y as int, x as int);
+        self.info.write_cap2("cup", y as isize, x as isize);
 
         cb();
 
@@ -65,7 +65,7 @@ impl Terminal {
 
     // Full-screen
 
-    pub fn fullscreen_canvas(&self, cb: &fn(&mut Canvas)) {
+    pub fn fullscreen_canvas(&'a self, cb: &fn(&mut Canvas)) {
         // Enter fullscreen
         let _tidy_cup = self.info.write_tidy_cap("smcup", "rmcup");
 
@@ -82,17 +82,17 @@ impl Terminal {
         // want to get keypresses.
         // TODO seems weird to create a second one of these.  stick a
         // .checkpoint() on the one attached to the terminal?
-        let tidy_termstate = termios::TidyTerminalState(self.info.in_fd);
+        let mut tidy_termstate = termios::TidyTerminalState(self.info.in_fd);
         tidy_termstate.cbreak();
 
-        let mut canv = Canvas(self.info, 0, 0, self.height(), self.width());
+        let mut canv = Canvas(&self.info, 0, 0, self.height(), self.width());
         cb(&mut canv);
     }
 
     // Enter fullscreen manually.  Cleaning up with exit_fullscreen is YOUR
     // responsibility!  If you don't do it in a drop, you risk leaving the
     // terminal in a fucked-up state on early exit!
-    pub fn enter_fullscreen(&self) -> Canvas {
+    pub fn enter_fullscreen(&'a mut self) -> Canvas {
         // Same stuff as above.  Enter fullscreen; enter keypad mode; clear the
         // screen.
         let tidy_cup = self.info.write_tidy_cap("smcup", "rmcup");
@@ -101,12 +101,15 @@ impl Terminal {
 
         // TODO intrflush, as above...?
 
-        let tidy_termstate = termios::TidyTerminalState(self.info.in_fd);
+        let mut tidy_termstate = termios::TidyTerminalState(self.info.in_fd);
         tidy_termstate.cbreak();
 
-        let mut canv = Canvas(self.info, 0, 0, self.height(), self.width());
-        canv.tidyables.tidy_termcaps.push_all_move(~[tidy_kx, tidy_cup]);
-        canv.tidyables.tidy_termstates.push(tidy_termstate);
+        let mut canv = Canvas(&self.info, 0, 0, self.height(), self.width());
+        // TODO since this isn't really a "scope" guard any more, maybe this should just push some
+        // closures to run when the canvas goes away
+        canv.guards.push(Box::new(tidy_kx));
+        canv.guards.push(Box::new(tidy_cup));
+        canv.guards.push(Box::new(tidy_termstate));
         return canv;
     }
 }

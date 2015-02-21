@@ -1,6 +1,6 @@
 use std::clone::Clone;
-use std::libc::c_int;
-use std::ptr;
+use libc::c_int;
+use std::rc::Rc;
 
 // -----------------------------------------------------------------------------
 // Platform-specific implementations
@@ -12,14 +12,13 @@ use std::ptr;
 // Hopefully someday rustc will be able to parse this stuff out itself.
 
 #[cfg(target_os="linux")]
-mod imp {
-    use std::libc::{c_int,c_uint,c_ushort,c_void};
-    use std::ptr;
+pub mod imp {
+    use libc::{c_int,c_uint,c_ushort,c_void};
 
-    static NCCS: int = 32;
-    type cc_t = c_int;
-    type tcflag_t = c_uint;
-    type speed_t = c_uint;
+    static NCCS: c_int = 32;
+    pub type cc_t = c_int;
+    pub type tcflag_t = c_uint;
+    pub type speed_t = c_uint;
 
 
     // Constants.
@@ -134,14 +133,14 @@ mod imp {
 
 
     pub struct termios {
-        c_iflag: tcflag_t,      // input modes
-        c_oflag: tcflag_t,      // output modes
-        c_cflag: tcflag_t,      // control modes
-        c_lflag: tcflag_t,      // local modes
+        pub c_iflag: tcflag_t,      // input modes
+        pub c_oflag: tcflag_t,      // output modes
+        pub c_cflag: tcflag_t,      // control modes
+        pub c_lflag: tcflag_t,      // local modes
         // why is this here?  what is going on?  who knows
         c_line: cc_t,           // "line discipline"
         // NOTE: 32 is the value of NCCS
-        c_cc: [cc_t, ..32],      // control characters
+        c_cc: [cc_t; 32],       // control characters
         c_ispeed: speed_t,      // input speed
         c_ospeed: speed_t,      // output speed
     }
@@ -165,7 +164,7 @@ mod imp {
             c_cflag: 0,
             c_lflag: 0,
             c_line: 0,
-            c_cc: [0, ..32],
+            c_cc: [0; 32],
             c_ispeed: 0,
             c_ospeed: 0,
         };
@@ -182,18 +181,18 @@ mod imp {
 
     extern {
         #[link_name = "ioctl"]
-        fn ioctl_p(fd: c_int, request: c_int, arg1: *c_void) -> c_int;
+        fn ioctl_p(fd: c_int, request: c_int, arg1: *mut c_void) -> c_int;
     }
 
     #[fixed_stack_segment]
-    pub fn request_terminal_size(fd: c_int) -> (uint, uint) {
-        let size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
+    pub fn request_terminal_size(fd: c_int) -> (usize, usize) {
+        let mut size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
 
-        let res = unsafe { ioctl_p(fd, TIOCGWINSZ, ptr::to_unsafe_ptr(&size) as *c_void) };
+        let res = unsafe { ioctl_p(fd, TIOCGWINSZ, &mut size as *mut _ as *mut c_void) };
 
         // XXX return value is -1 on failure
         // returns width, height
-        return (size.ws_col as uint, size.ws_row as uint);
+        return (size.ws_col as usize, size.ws_row as usize);
     }
 }
 
@@ -201,8 +200,8 @@ mod imp {
 // -----------------------------------------------------------------------------
 
 extern {
-    fn tcgetattr(fd: c_int, termios_p: *imp::termios) -> c_int;
-    fn tcsetattr(fd: c_int, optional_actions: c_int, termios_p: *imp::termios) -> c_int;
+    fn tcgetattr(fd: c_int, termios_p: *mut imp::termios) -> c_int;
+    fn tcsetattr(fd: c_int, optional_actions: c_int, termios_p: *const imp::termios) -> c_int;
 }
 
 /** Self-reverting access to termios state changes.
@@ -212,12 +211,11 @@ extern {
   * without the C++ braindamage.
   */
 pub struct TidyTerminalState {
-    priv c_fd: c_int,
-    priv c_termios_orig: imp::termios,
-    priv c_termios_cur: @mut imp::termios,
+    c_fd: c_int,
+    c_termios_orig: imp::termios,
+    c_termios_cur: imp::termios,
 }
 
-#[unsafe_destructor]
 impl Drop for TidyTerminalState {
     fn drop(&mut self) {
         self.restore_term();
@@ -226,16 +224,16 @@ impl Drop for TidyTerminalState {
 
 #[fixed_stack_segment]
 pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
-    let c_termios = imp::blank_termios();
+    let mut c_termios = imp::blank_termios();
 
     // TODO this has a retval, but...  eh...
     unsafe {
-        tcgetattr(fd as c_int, ptr::to_unsafe_ptr(&c_termios));
+        tcgetattr(fd as c_int, &mut c_termios);
     }
 
     return TidyTerminalState{
         c_fd: fd as c_int,
-        c_termios_cur: @mut c_termios.clone(),
+        c_termios_cur: c_termios.clone(),
         c_termios_orig: c_termios,
     };
 }
@@ -243,16 +241,16 @@ pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
 // TODO: i want this impl only for ~T but that makes the drop not work
 impl TidyTerminalState {
     #[fixed_stack_segment]
-    fn restore_term (&self) {
+    fn restore_term (&mut self) {
         unsafe {
-            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::to_unsafe_ptr(&self.c_termios_orig));
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, &mut self.c_termios_orig);
         }
     }
 
     /** Explicitly restore the terminal to its pristine state. */
-    pub fn restore(&self) {
+    pub fn restore(&mut self) {
         self.restore_term();
-        *self.c_termios_cur = self.c_termios_orig.clone();
+        self.c_termios_cur = self.c_termios_orig.clone();
     }
 
 
@@ -268,7 +266,7 @@ impl TidyTerminalState {
       * In raw mode, absolutely every keypress is passed along to the application
       * untouched.  This means, for example, that ^C doesn't send a SIGINT.
       */
-    pub fn raw(&self) {
+    pub fn raw(&mut self) {
         // Disable SIGINT
         self.c_termios_cur.c_iflag &= !imp::BRKINT;
         // Ignore usual signal-generating keys
@@ -284,7 +282,7 @@ impl TidyTerminalState {
       * work as normal instead of going to the application.
       */
     #[fixed_stack_segment]
-    pub fn cbreak(&self) {
+    pub fn cbreak(&mut self) {
         self.c_termios_cur.c_iflag &= !(
             imp::IXON       // ignore XON/XOFF, i.e. ^S ^Q
             | imp::ISTRIP   // don't strip the 8th bit (?!)
@@ -332,7 +330,7 @@ impl TidyTerminalState {
             // is there to do about it
             // TODO do i want this in a separate 'commit()' method?  for
             // chaining etc?
-            tcsetattr(self.c_fd, imp::TCSAFLUSH, ptr::to_unsafe_ptr(&*self.c_termios_cur));
+            tcsetattr(self.c_fd, imp::TCSAFLUSH, &self.c_termios_cur);
         }
     }
 }

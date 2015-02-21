@@ -1,8 +1,10 @@
-#[link(name = "amulet", vers = "0.0", author = "eevee")];
-#[comment = "Rust ncurses and TUI library"];
-#[crate_type = "lib"];
+#![link(name = "amulet", vers = "0.0", author = "eevee")]
+#![comment = "Rust ncurses and TUI library"]
+#![crate_type = "lib"]
+// TODO?  :S
+#![feature(unsafe_destructor)]
 
-extern mod std;
+extern crate libc;
 
 pub use terminal::Terminal;
 

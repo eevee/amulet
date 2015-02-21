@@ -9,60 +9,50 @@
 
 use std::cmp::Eq;
 use std::hash::Hash;
-use std::hashmap::HashMap;
-use std::io::WriterUtil;
-use std::to_bytes::IterBytes;
+use std::collections::HashMap;
+use std::collections::hash_map::{Hasher,Entry};
 use std::vec;
 use std::io;
+use std::fmt::Show;
 
 pub struct Trie<K, V> {
     value: Option<V>,
-    children: @mut HashMap<K, @mut Trie<K, V>>,
-}
-
-// don't be copyable
-#[unsafe_destructor]
-impl<K, V> Drop for Trie<K, V> {
-    fn drop(&mut self) {}
+    children: HashMap<K, Trie<K, V>>,
 }
 
 /** Construct an empty trie. */
-pub fn Trie<T: Eq + IterBytes + Hash + Clone + Freeze + 'static, U: Clone + 'static>() -> @mut Trie<T, U> {
-    return @mut Trie{ value: None::<U>, children: @mut HashMap::new() };
+pub fn Trie<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static>() -> Trie<T, U> {
+    return Trie::new();
 }
 
-impl<T: Eq + IterBytes + Hash + Clone + Freeze + 'static, U: Clone + 'static> Trie<T, U> {
-    pub fn insert(@mut self, keys: &[T], value: U) {
-        if keys.is_empty() {
-            fail!(~"Trie cannot have an empty key");
-        }
-
-        // TODO: error on duplicate key?
-
-        let mut node = self;
-        for k in range(0, keys.len()) {
-            if node.children.contains_key(&keys[k]) {
-                node = *node.children.get(&keys[k]);
-            }
-            else {
-                let new_node = @mut Trie{ value: None::<U>, children: @mut HashMap::new() };
-                node.children.insert(keys[k].clone(), new_node);
-                node = new_node;
-            }
-        }
-
-        node.value = Some(value);
+impl<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static> Trie<T, U> {
+    pub fn new() -> Trie<T, U> {
+        return Trie{ value: None::<U>, children: HashMap::new() };
     }
 
-    fn find(@mut self, keys: &[T]) -> Option<U> {
+    pub fn insert(&mut self, keys: &[T], value: U) {
         if keys.is_empty() {
-            fail!(~"Trie cannot have an empty key");
+            self.value = Some(value);
+            return;
+        }
+
+        let key = keys[0].clone();
+        let child_node = match self.children.entry(key) {
+            Entry::Occupied(child_node) => child_node.into_mut(),
+            Entry::Vacant(child_node) => child_node.insert(Trie::new()),
+        };
+        child_node.insert(&keys[1..], value);
+    }
+
+    fn find(&self, keys: &[T]) -> Option<U> {
+        if keys.is_empty() {
+            panic!("Trie cannot have an empty key");
         }
 
         let mut node = self;
         for k in range(0, keys.len()) {
-            match node.children.find(&keys[k]) {
-                Some(child_node) => node = *child_node,
+            match node.children.get(&keys[k]) {
+                Some(child_node) => node = child_node,
                 None => return None,
             }
         }
@@ -70,30 +60,30 @@ impl<T: Eq + IterBytes + Hash + Clone + Freeze + 'static, U: Clone + 'static> Tr
         return node.value.clone();
     }
 
-    pub fn find_prefix(@mut self, keys: &[T]) -> (Option<U>, ~[T]) {
+    pub fn find_prefix(&self, keys: &[T]) -> (Option<U>, Vec<T>) {
         let mut node = self;
         for k in range(0, keys.len()) {
-            match node.children.find(&keys[k]) {
-                Some(child_node) => node = *child_node,
-                None => return (node.value.clone(), keys.slice(k, keys.len()).to_owned()),
+            match node.children.get(&keys[k]) {
+                Some(child_node) => node = child_node,
+                None => return (node.value.clone(), keys.slice(k, keys.len()).to_vec()),
             }
         }
 
-        return (node.value.clone(), ~[]);
+        return (node.value.clone(), vec![]);
     }
 
     fn _print_all(&self) {
-        self._print_all_impl([]);
+        self._print_all_impl(&mut vec![]);
     }
-    fn _print_all_impl(&self, key_prefix: &[T]) {
-        match self.value.clone() {
-            Some(value) => io::stderr().write_line(fmt!("%? => %?", key_prefix, value)),
-            None => (),
+    fn _print_all_impl(&self, prefix: &mut Vec<T>) {
+        for value in self.value.iter() {
+            io::stderr().write_line(format!("{:?} => {:?}", prefix, value).as_slice());
         }
 
         for (key, node) in self.children.iter() {
-            let new_prefix = vec::append_one(key_prefix.to_owned(), key.clone());
-            node._print_all_impl(new_prefix);
+            prefix.push(key.clone());
+            node._print_all_impl(prefix);
+            prefix.pop();
         }
     }
 }

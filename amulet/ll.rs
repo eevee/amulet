@@ -1,92 +1,88 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
-use std::libc::{c_char,c_int,c_long,c_short};
+use libc::{c_char,c_int,c_long,c_short};
+use std::ffi::CString;
+use std::ffi::c_str_to_bytes;
 use std::ptr;
 use std::str;
-use std::libc;
+use std::str::from_c_str;
+use libc;
 use std::io;
-use std::cast;
+use std::mem::transmute;
 use std::vec;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use c;
 use termios;
 use trie::Trie;
 
 extern {
-    fn setlocale(category: c_int, locale: *c_char) -> *c_char;
+    fn setlocale(category: c_int, locale: *mut c_char) -> *mut c_char;
 
     // XXX why the fuck is this not available
-    static stdout: *libc::FILE;
+    static stdout: *mut libc::FILE;
 }
 
 
 /** Prints a given termcap sequence when it goes out of scope. */
-struct TidyTermcap {
-    terminfo: @TerminalInfo,
+pub struct TidyTermcap<'a> {
+    terminfo: &'a TerminalInfo<'a>,
     cap: &'static str,
 }
 #[unsafe_destructor]
-impl Drop for TidyTermcap {
+impl<'a> Drop for TidyTermcap<'a> {
     fn drop(&mut self) {
         self.terminfo.write_cap(self.cap);
     }
 }
 
-/** Wraps a couple other droppables.  Exists because Rust currently doesn't
- * handle borrowed pointers to traits very well; see
- * https://github.com/mozilla/rust/issues/5708
- */
-pub struct TidyBundle {
-    tidy_termcaps: ~[TidyTermcap],
-    tidy_termstates: ~[termios::TidyTerminalState],
-}
 
+pub struct TerminalInfo<'a> {
+    pub in_fd: c_int,
+    pub in_file: RefCell<Box<io::Reader + 'a>>,
+    pub out_fd: c_int,
+    out_file: RefCell<Box<io::Writer + 'a>>,
 
-struct TerminalInfo {
-    in_fd: c_int,
-    in_file: @io::Reader,
-    out_fd: c_int,
-    out_file: @io::Writer,
+    pub keypress_trie: Trie<u8, Key>,
 
-    keypress_trie: @mut Trie<u8, Key>,
+    c_terminfo: *mut c::TERMINAL,
+    tidy_termstate: termios::TidyTerminalState,
 
-    priv c_terminfo: *c::TERMINAL,
-    priv tidy_termstate: termios::TidyTerminalState,
-
-    //term_type: ~str,
+    //term_type: &str,
 }
 
 #[unsafe_destructor]
-impl Drop for TerminalInfo {
+impl<'a> Drop for TerminalInfo<'a> {
     fn drop(&mut self) {
         self.tidy_termstate.restore();
     }
 }
-impl TerminalInfo {
+impl<'a> TerminalInfo<'a> {
     #[fixed_stack_segment]
-    pub fn new() -> @TerminalInfo {
-        let error_code: c_int = 0;
+    pub fn new() -> TerminalInfo<'a> {
+        let mut error_code: c_int = 0;
         // NULL first arg means read TERM from env (TODO).
         // second arg is a fd to spew to on error, but it's not used when there's
         // an error pointer.
         // third arg is a var to stick the error code in.
         // TODO allegedly setupterm doesn't work on BSD?
         unsafe {
-            let res = c::setupterm(ptr::null(), -1, ptr::to_unsafe_ptr(&error_code));
+            let res = c::setupterm(ptr::null(), -1, &mut error_code);
 
             if res != c::OK {
                 if error_code == -1 {
-                    fail!(~"Couldn't find terminfo database");
+                    panic!("Couldn't find terminfo database");
                 }
                 else if error_code == 0 {
-                    fail!(~"Couldn't identify terminal");
+                    panic!("Couldn't identify terminal");
                 }
                 else if error_code == 1 {
                     // The manual puts this as "terminal is hard-copy" but come on.
-                    fail!(~"Terminal appears to be made of paper");
+                    panic!("Terminal appears to be made of paper");
                 }
                 else {
-                    fail!(~"Something is totally fucked");
+                    panic!("Something is totally fucked");
                 }
             }
         }
@@ -95,32 +91,32 @@ impl TerminalInfo {
         // pointer to it.
         let terminfo = c::cur_term;
 
-        let keypress_trie = Trie();
-        let mut p: **c_char = ptr::to_unsafe_ptr(&c::strnames[0]);
+        let mut keypress_trie = Trie::new();
+        let mut p: *const *const c_char = &c::strnames[0];
         unsafe {
             while *p != ptr::null() {
-                let capname = str::raw::from_c_str(*p);
+                let capname = from_c_str(*p);
 
-                if capname[0] == "k"[0] {
+                if capname.char_at(0) == 'k' {
                     let cap = c::tigetstr(*p);
                     if cap != ptr::null() {
-                        let cap_key = vec::raw::from_buf_raw(cap, libc::strlen(cap) as uint).map(|el| *el as u8);
+                        let cap_key = c_str_to_bytes(&cap);
                         keypress_trie.insert(cap_key, cap_to_key(capname));
                     }
                 }
 
-                p = ptr::offset(p, 1);
+                p = p.offset(1);
             }
         }
 
-        return @TerminalInfo{
+        return TerminalInfo{
             // TODO would be nice to parametrize these, but Reader and Writer do
             // not yet expose a way to get the underlying fd, which makes the API
             // sucky
             in_fd: 0,
-            in_file: io::stdin(),
+            in_file: RefCell::new(Box::new(io::stdin()) as Box<io::Reader>),
             out_fd: 1,
-            out_file: io::stdout(),
+            out_file: RefCell::new(Box::new(io::stdout()) as Box<io::Writer>),
 
             keypress_trie: keypress_trie,
 
@@ -141,13 +137,13 @@ impl TerminalInfo {
     // - handle SIGWINCH
     // - fall back to environment
     // - THEN fall back to termcap
-    pub fn height(&self) -> uint {
+    pub fn height(&self) -> usize {
         // TODO rather not dip into `imp`, but `pub use` isn't working right
         let (_, height) = termios::imp::request_terminal_size(self.out_fd);
         return height;
         //return self.numeric_cap("lines");
     }
-    pub fn width(&self) -> uint {
+    pub fn width(&self) -> usize {
         let (width, _) = termios::imp::request_terminal_size(self.out_fd);
         return width;
         //return self.numeric_cap("cols");
@@ -162,13 +158,12 @@ impl TerminalInfo {
             c::set_curterm(self.c_terminfo);
 
             let mut value = 0;
-            do name.to_c_str().with_ref |bytes| {
-                value = c::tigetflag(bytes);
-            }
+            let c_name = CString::from_slice(name.as_bytes());
+            value = c::tigetflag(c_name.as_ptr());
 
             if value == -1 {
                 // wrong type
-                fail!(~"wrong type");
+                panic!("wrong type");
             }
 
             // Otherwise, is 0 or 1
@@ -177,56 +172,53 @@ impl TerminalInfo {
     }
 
     #[fixed_stack_segment]
-    fn numeric_cap(&self, name: &str) -> uint {
+    fn numeric_cap(&self, name: &str) -> u32 {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let mut value = -1;
-            do name.to_c_str().with_ref |bytes| {
-                value = c::tigetnum(bytes);
-            }
+            let c_name = CString::from_slice(name.as_bytes());
+            value = c::tigetnum(c_name.as_ptr());
 
             if value == -2 {
                 // wrong type
-                fail!(~"wrong type");
+                panic!("wrong type");
             }
             else if value == -1 {
                 // missing; should be None
-                fail!(~"missing; should be None");
+                panic!("missing; should be None");
             }
 
-            return value as uint;
+            return value as u32;
         }
     }
 
     #[fixed_stack_segment]
-    fn _string_cap_cstr(&self, name: &str) -> *c_char {
+    fn _string_cap_cstr(&self, name: &str) -> *const c_char {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
-            let mut value = ptr::null();
-            do name.to_c_str().with_ref |bytes| {
-                value = c::tigetstr(bytes);
-            }
+            let c_name = CString::from_slice(name.as_bytes());
+            let value = c::tigetstr(c_name.as_ptr());
 
             if value == ptr::null() {
                 // missing; should be None really
-                fail!(~"missing; should be None really");
+                panic!("missing; should be None really");
             }
-            else if value == cast::transmute(-1) {
+            else if transmute::<_, isize>(value) == -1 {
                 // wrong type
-                fail!(~"wrong type");
+                panic!("wrong type");
             }
 
             return value;
         }
     }
 
-    fn string_cap(&self, name: &str) -> ~str {
+    fn string_cap(&self, name: &str) -> &str {
         let value = self._string_cap_cstr(name);
 
         unsafe {
-            return str::raw::from_c_str(value);
+            return from_c_str(value);
         }
     }
 
@@ -245,12 +237,12 @@ impl TerminalInfo {
      * arguments.
      */
     #[fixed_stack_segment]
-    fn format_cap(&self, name: &str, args: ~[int]) -> ~str {
+    fn format_cap(&self, name: &str, args: Vec<isize>) -> &str {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let template = self._string_cap_cstr(name);
-            let padded_args = args + ~[0, 0, 0, 0, 0, 0, 0, 0];
+            let padded_args = args + &[0, 0, 0, 0, 0, 0, 0, 0];
             let formatted = c::tparm(
                 template,
                 padded_args[0] as c_long,
@@ -264,7 +256,7 @@ impl TerminalInfo {
                 padded_args[8] as c_long
             );
 
-            return str::raw::from_c_str(formatted);
+            return from_c_str(formatted);
         }
     }
 
@@ -282,7 +274,7 @@ impl TerminalInfo {
             let formatted = c::tparm(
                 template, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
 
-            //unsafe { io::stderr().write_str(fmt!("%s\t%s\n", name, str::raw::from_c_str(formatted))); }
+            //unsafe { io::stderr().write_str(fmt!("%s\t%s\n", name, from_c_str(formatted))); }
 
             // TODO we are supposed to use curses's tputs(3) to print formatted
             // capabilities, because they sometimes contain "padding" of the
@@ -305,14 +297,14 @@ impl TerminalInfo {
         // have an escaped % or something.  Best do the whole formatting thing.
         self._write_capx(cap_name, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
-    pub fn write_cap1(&self, cap_name: &str, arg1: int) {
+    pub fn write_cap1(&self, cap_name: &str, arg1: isize) {
         self._write_capx(cap_name, arg1 as c_long, 0, 0, 0, 0, 0, 0, 0, 0);
     }
-    pub fn write_cap2(&self, cap_name: &str, arg1: int, arg2: int) {
+    pub fn write_cap2(&self, cap_name: &str, arg1: isize, arg2: isize) {
         self._write_capx(cap_name, arg1 as c_long, arg2 as c_long, 0, 0, 0, 0, 0, 0, 0);
     }
 
-    pub fn write_tidy_cap(@self, do_cap: &str, undo_cap: &'static str) -> TidyTermcap {
+    pub fn write_tidy_cap(&'a self, do_cap: &str, undo_cap: &'static str) -> TidyTermcap<'a> {
         self.write_cap(do_cap);
 
         return TidyTermcap{ terminfo: self, cap: undo_cap };
@@ -323,18 +315,19 @@ impl TerminalInfo {
     // Output
 
     pub fn write(&self, s: &str) {
-        self.out_file.flush();
+        let mut out_file = self.out_file.borrow_mut();
+        out_file.flush();
         // TODO well.  should be a bit more flexible, i guess.
-        self.out_file.write_str(s);
-        self.out_file.flush();
+        out_file.write_str(s);
+        out_file.flush();
     }
 
 
 
     // Some stuff
-    pub fn move(&self, x: uint, y: uint) {
+    pub fn reposition(&self, x: usize, y: usize) {
         // TODO check for existence of cup
-        self.write_cap2("cup", y as int, x as int);
+        self.write_cap2("cup", y as isize, x as isize);
     }
 }
 
@@ -342,20 +335,21 @@ impl TerminalInfo {
 ////////////////////////////////////////////////////////////////////////////////
 // Attributes
 
+#[derive(Clone)]
 pub struct Style {
     // TODO i guess these could be compacted into a bitstring, but eh.
-    is_bold: bool,
-    is_underline: bool,
+    pub is_bold: bool,
+    pub is_underline: bool,
 
     // TODO strictly speaking these should refer to entire colors, not just
     // color numbers, for compatability with a truckload of other kinds of
     // terminals.  but, you know.
     // TODO -1 for the default is super hokey and only for curses compat
-    fg_color: int,
-    bg_color: int,
+    pub fg_color: isize,
+    pub bg_color: isize,
 }
 pub fn Style() -> Style {
-    return NORMAL;
+    return Style{ ..NORMAL };
 }
 impl Style {
     pub fn bold(&self) -> Style {
@@ -374,10 +368,10 @@ impl Style {
     // before capturing the window...  :|
     // TODO this doesn't handle default colors correctly, because those are
     // color index -1.
-    pub fn fg(&self, color: int) -> Style {
+    pub fn fg(&self, color: isize) -> Style {
         return Style{ fg_color: color, ..*self };
     }
-    pub fn bg(&self, color: int) -> Style {
+    pub fn bg(&self, color: isize) -> Style {
         return Style{ bg_color: color, ..*self };
     }
 
@@ -424,46 +418,46 @@ pub static NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color:
 // TODO: i don't know how to handle ctrl-/alt- sequences.
 // 1. i don't know how to represent them type-wise
 // 2. i don't know how to parse them!  they aren't in termcap.
-#[deriving(Clone)]
-enum SpecialKeyCode {
-    KEY_LEFT,
-    KEY_RIGHT,
-    KEY_UP,
-    KEY_DOWN,
-    KEY_ESC,
+#[derive(Clone, Show)]
+pub enum SpecialKeyCode {
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN,
+    ESC,
 
     // XXX temp kludge until i have all yonder keys
-    KEY_UNKNOWN,
+    UNKNOWN,
 }
 
-#[deriving(Clone)]
+#[derive(Clone, Show)]
 pub enum Key {
     Character(char),
     SpecialKey(SpecialKeyCode),
-    FunctionKey(uint),
+    FunctionKey(u32),
 }
 
-fn cap_to_key(cap: ~str) -> Key {
+fn cap_to_key(cap: &str) -> Key {
     // TODO this matching would be much more efficient if it used, hurr, a
     // trie.  but seems silly to build one only to use it a few times.
     // TODO uh maybe this should use the happy C names
     return match cap {
-        ~"kcuf1" => SpecialKey(KEY_RIGHT),
-        ~"kcub1" => SpecialKey(KEY_LEFT),
-        ~"kcuu1" => SpecialKey(KEY_UP),
-        ~"kcud1" => SpecialKey(KEY_DOWN),
-        ~"kf1" => FunctionKey(1),
-        ~"kf2" => FunctionKey(2),
-        ~"kf3" => FunctionKey(3),
-        ~"kf4" => FunctionKey(4),
-        ~"kf5" => FunctionKey(5),
-        ~"kf6" => FunctionKey(6),
-        ~"kf7" => FunctionKey(7),
-        ~"kf8" => FunctionKey(8),
-        ~"kf9" => FunctionKey(9),
-        ~"kf10" => FunctionKey(10),
-        ~"kf11" => FunctionKey(11),
-        ~"kf12" => FunctionKey(12),
-        _ => SpecialKey(KEY_UNKNOWN),
+        "kcuf1" => Key::SpecialKey(SpecialKeyCode::RIGHT),
+        "kcub1" => Key::SpecialKey(SpecialKeyCode::LEFT),
+        "kcuu1" => Key::SpecialKey(SpecialKeyCode::UP),
+        "kcud1" => Key::SpecialKey(SpecialKeyCode::DOWN),
+        "kf1" => Key::FunctionKey(1),
+        "kf2" => Key::FunctionKey(2),
+        "kf3" => Key::FunctionKey(3),
+        "kf4" => Key::FunctionKey(4),
+        "kf5" => Key::FunctionKey(5),
+        "kf6" => Key::FunctionKey(6),
+        "kf7" => Key::FunctionKey(7),
+        "kf8" => Key::FunctionKey(8),
+        "kf9" => Key::FunctionKey(9),
+        "kf10" => Key::FunctionKey(10),
+        "kf11" => Key::FunctionKey(11),
+        "kf12" => Key::FunctionKey(12),
+        _ => Key::SpecialKey(SpecialKeyCode::UNKNOWN),
     };
 }
