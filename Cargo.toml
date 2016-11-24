@@ -1,0 +1,8 @@
+[package]
+name = "amulet"
+version = "0.1.0"
+authors = ["eevee"]
+description = "Rust ncurses and TUI library"
+
+[dependencies]
+libc = "0.2.17"

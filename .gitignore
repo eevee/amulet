@@ -7,3 +7,5 @@ amulet/.built
 # Ignore the binaries in `demos`
 demos/*
 !demos/*.rs
+
+target

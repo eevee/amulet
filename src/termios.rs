@@ -131,7 +131,8 @@ pub mod imp {
     /* ioctls */
     pub static TIOCGWINSZ: c_int = 0x5413;
 
-
+    #[derive(Clone)]
+    #[repr(C)]
     pub struct termios {
         pub c_iflag: tcflag_t,      // input modes
         pub c_oflag: tcflag_t,      // output modes
@@ -143,17 +144,6 @@ pub mod imp {
         c_cc: [cc_t; 32],       // control characters
         c_ispeed: speed_t,      // input speed
         c_ospeed: speed_t,      // output speed
-    }
-
-    // deriving(Clone) doesn't work for fixed-size vectors (#7622)
-    impl Clone for termios {
-        fn clone(&self) -> termios {
-            return termios{
-                // ...also it's a syntax error to not have at least one pair
-                c_iflag: self.c_iflag,
-                ..*self
-            };
-        }
     }
 
     // Need this to be able to create blank structs on the stack
@@ -184,7 +174,6 @@ pub mod imp {
         fn ioctl_p(fd: c_int, request: c_int, arg1: *mut c_void) -> c_int;
     }
 
-    #[fixed_stack_segment]
     pub fn request_terminal_size(fd: c_int) -> (usize, usize) {
         let mut size = winsize{ ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
 
@@ -222,7 +211,6 @@ impl Drop for TidyTerminalState {
     }
 }
 
-#[fixed_stack_segment]
 pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
     let mut c_termios = imp::blank_termios();
 
@@ -240,7 +228,6 @@ pub fn TidyTerminalState(fd: c_int) -> TidyTerminalState {
 
 // TODO: i want this impl only for ~T but that makes the drop not work
 impl TidyTerminalState {
-    #[fixed_stack_segment]
     fn restore_term (&mut self) {
         unsafe {
             tcsetattr(self.c_fd, imp::TCSAFLUSH, &mut self.c_termios_orig);
@@ -281,7 +268,6 @@ impl TidyTerminalState {
       * This is identical to raw mode, except that ^C and other signal keys
       * work as normal instead of going to the application.
       */
-    #[fixed_stack_segment]
     pub fn cbreak(&mut self) {
         self.c_termios_cur.c_iflag &= !(
             imp::IXON       // ignore XON/XOFF, i.e. ^S ^Q
