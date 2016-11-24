@@ -35,11 +35,13 @@ pub type Struct_screen = c_void;
 pub type SCREEN = Struct_screen;
 pub type WINDOW = Struct__win_st;
 pub type attr_t = chtype;
+#[repr(C)]
 pub struct cchar_t {
     attr: attr_t,
     chars: [wchar_t; 5],
 }
 pub type Struct_ldat = c_void;
+#[repr(C)]
 pub struct Struct__win_st {
     _cury: c_short,
     _curx: c_short,
@@ -70,6 +72,7 @@ pub struct Struct__win_st {
     _yoffset: c_short,
     _bkgrnd: cchar_t,
 }
+#[repr(C)]
 pub struct Struct_pdat {
     _pad_y: c_short,
     _pad_x: c_short,
@@ -81,6 +84,7 @@ pub struct Struct_pdat {
 pub type NCURSES_OUTC = *mut u8;
 pub type NCURSES_WINDOW_CB = *mut u8;
 pub type NCURSES_SCREEN_CB = *mut u8;
+#[repr(C)]
 pub struct MEVENT {
     id: c_short,
     x: c_int,

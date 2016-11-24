@@ -1,11 +1,9 @@
 /** Low-level ncurses wrapper, for simple or heavily customized applications. */
 
 use libc::{c_char,c_int,c_long,c_short};
-use std::ffi::CString;
-use std::ffi::c_str_to_bytes;
+use std::ffi::{CStr, CString};
 use std::ptr;
 use std::str;
-use std::str::from_c_str;
 use libc;
 use std::io;
 use std::mem::transmute;
@@ -27,10 +25,9 @@ extern {
 
 /** Prints a given termcap sequence when it goes out of scope. */
 pub struct TidyTermcap<'a> {
-    terminfo: &'a TerminalInfo<'a>,
+    terminfo: &'a TerminalInfo,
     cap: &'static str,
 }
-#[unsafe_destructor]
 impl<'a> Drop for TidyTermcap<'a> {
     fn drop(&mut self) {
         self.terminfo.write_cap(self.cap);
@@ -38,11 +35,11 @@ impl<'a> Drop for TidyTermcap<'a> {
 }
 
 
-pub struct TerminalInfo<'a> {
+pub struct TerminalInfo {
     pub in_fd: c_int,
-    pub in_file: RefCell<Box<io::Reader + 'a>>,
+    pub in_file: RefCell<Box<io::Read>>,
     pub out_fd: c_int,
-    out_file: RefCell<Box<io::Writer + 'a>>,
+    out_file: RefCell<Box<io::Write>>,
 
     pub keypress_trie: Trie<u8, Key>,
 
@@ -52,15 +49,13 @@ pub struct TerminalInfo<'a> {
     //term_type: &str,
 }
 
-#[unsafe_destructor]
-impl<'a> Drop for TerminalInfo<'a> {
+impl<'a> Drop for TerminalInfo {
     fn drop(&mut self) {
         self.tidy_termstate.restore();
     }
 }
-impl<'a> TerminalInfo<'a> {
-    #[fixed_stack_segment]
-    pub fn new() -> TerminalInfo<'a> {
+impl<'a> TerminalInfo {
+    pub fn new() -> TerminalInfo {
         let mut error_code: c_int = 0;
         // NULL first arg means read TERM from env (TODO).
         // second arg is a fd to spew to on error, but it's not used when there's
@@ -95,13 +90,12 @@ impl<'a> TerminalInfo<'a> {
         let mut p: *const *const c_char = &c::strnames[0];
         unsafe {
             while *p != ptr::null() {
-                let capname = from_c_str(*p);
-
-                if capname.char_at(0) == 'k' {
+                if **p == b'k' as i8 {
+                    let capname = CStr::from_ptr(*p);
                     let cap = c::tigetstr(*p);
                     if cap != ptr::null() {
-                        let cap_key = c_str_to_bytes(&cap);
-                        keypress_trie.insert(cap_key, cap_to_key(capname));
+                        let cap_key = CStr::from_ptr(cap);
+                        keypress_trie.insert(cap_key.to_bytes(), cap_to_key(capname.to_str().unwrap()));
                     }
                 }
 
@@ -114,9 +108,9 @@ impl<'a> TerminalInfo<'a> {
             // not yet expose a way to get the underlying fd, which makes the API
             // sucky
             in_fd: 0,
-            in_file: RefCell::new(Box::new(io::stdin()) as Box<io::Reader>),
+            in_file: RefCell::new(Box::new(io::stdin()) as Box<io::Read>),
             out_fd: 1,
-            out_file: RefCell::new(Box::new(io::stdout()) as Box<io::Writer>),
+            out_file: RefCell::new(Box::new(io::stdout()) as Box<io::Write>),
 
             keypress_trie: keypress_trie,
 
@@ -152,13 +146,12 @@ impl<'a> TerminalInfo<'a> {
     // ------------------------------------------------------------------------
     // Very-low-level capability inspection
 
-    #[fixed_stack_segment]
     fn flag_cap(&self, name: &str) -> bool {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let mut value = 0;
-            let c_name = CString::from_slice(name.as_bytes());
+            let c_name = CString::new(name).unwrap();
             value = c::tigetflag(c_name.as_ptr());
 
             if value == -1 {
@@ -171,13 +164,12 @@ impl<'a> TerminalInfo<'a> {
         }
     }
 
-    #[fixed_stack_segment]
     fn numeric_cap(&self, name: &str) -> u32 {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let mut value = -1;
-            let c_name = CString::from_slice(name.as_bytes());
+            let c_name = CString::new(name).unwrap();
             value = c::tigetnum(c_name.as_ptr());
 
             if value == -2 {
@@ -193,12 +185,11 @@ impl<'a> TerminalInfo<'a> {
         }
     }
 
-    #[fixed_stack_segment]
     fn _string_cap_cstr(&self, name: &str) -> *const c_char {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
-            let c_name = CString::from_slice(name.as_bytes());
+            let c_name = CString::new(name).unwrap();
             let value = c::tigetstr(c_name.as_ptr());
 
             if value == ptr::null() {
@@ -217,9 +208,7 @@ impl<'a> TerminalInfo<'a> {
     fn string_cap(&self, name: &str) -> &str {
         let value = self._string_cap_cstr(name);
 
-        unsafe {
-            return from_c_str(value);
-        }
+        return unsafe { CStr::from_ptr(value).to_str().unwrap() };
     }
 
     // TODO i am not really liking the string capability handling anywhere in
@@ -236,31 +225,29 @@ impl<'a> TerminalInfo<'a> {
      * missing arguments become zero.  No capability requires more than 9
      * arguments.
      */
-    #[fixed_stack_segment]
-    fn format_cap(&self, name: &str, args: Vec<isize>) -> &str {
+    fn format_cap(&self, name: &str, mut args: Vec<isize>) -> &str {
         unsafe {
             c::set_curterm(self.c_terminfo);
 
             let template = self._string_cap_cstr(name);
-            let padded_args = args + &[0, 0, 0, 0, 0, 0, 0, 0];
+            args.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0]);
             let formatted = c::tparm(
                 template,
-                padded_args[0] as c_long,
-                padded_args[1] as c_long,
-                padded_args[2] as c_long,
-                padded_args[3] as c_long,
-                padded_args[4] as c_long,
-                padded_args[5] as c_long,
-                padded_args[6] as c_long,
-                padded_args[7] as c_long,
-                padded_args[8] as c_long
+                args[0] as c_long,
+                args[1] as c_long,
+                args[2] as c_long,
+                args[3] as c_long,
+                args[4] as c_long,
+                args[5] as c_long,
+                args[6] as c_long,
+                args[7] as c_long,
+                args[8] as c_long
             );
 
-            return from_c_str(formatted);
+            return CStr::from_ptr(formatted).to_str().unwrap();
         }
     }
 
-    #[fixed_stack_segment]
     fn _write_capx(&self, name: &str,
             arg1: c_long, arg2: c_long, arg3: c_long,
             arg4: c_long, arg5: c_long, arg6: c_long,
@@ -318,7 +305,7 @@ impl<'a> TerminalInfo<'a> {
         let mut out_file = self.out_file.borrow_mut();
         out_file.flush();
         // TODO well.  should be a bit more flexible, i guess.
-        out_file.write_str(s);
+        write!(out_file, "{}", s);
         out_file.flush();
     }
 
@@ -375,7 +362,6 @@ impl Style {
         return Style{ bg_color: color, ..*self };
     }
 
-    #[fixed_stack_segment]
     fn c_value(&self) -> c_int {
         let mut rv: c_int = 0;
 
@@ -419,7 +405,7 @@ pub static NORMAL: Style = Style{ is_bold: false, is_underline: false, fg_color:
 // 1. i don't know how to represent them type-wise
 // 2. i don't know how to parse them!  they aren't in termcap.
 // TODO why does this even exist?  just make these all parts of the Key enum??
-#[derive(Clone, Show)]
+#[derive(Clone, Debug)]
 pub enum SpecialKeyCode {
     LEFT,
     RIGHT,
@@ -432,7 +418,7 @@ pub enum SpecialKeyCode {
 }
 
 // TODO "Show" doesn't really cut it; this should implement something debuggable
-#[derive(Clone, Show)]
+#[derive(Clone, Debug)]
 pub enum Key {
     Character(char),
     SpecialKey(SpecialKeyCode),

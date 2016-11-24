@@ -19,7 +19,7 @@ struct CanvasRow {
 }
 
 pub struct Canvas<'a, 'b> {
-    terminfo: &'b TerminalInfo<'b>,
+    terminfo: &'b TerminalInfo,
     start_row: usize,
     start_col: usize,
     cur_row: usize,
@@ -31,13 +31,13 @@ pub struct Canvas<'a, 'b> {
     pub guards: Vec<Box<Drop + 'a>>,
 }
 
-pub fn Canvas<'a, 'b>(terminfo: &'b TerminalInfo<'b>, start_row: usize, start_col: usize, height: usize, width: usize) -> Canvas<'a, 'b> {
-    let rows = range(0, height).map(|_row| {
+pub fn Canvas<'a, 'b>(terminfo: &'b TerminalInfo, start_row: usize, start_col: usize, height: usize, width: usize) -> Canvas<'a, 'b> {
+    let rows = (0..height).map(|_row| {
         CanvasRow{
             is_dirty: false,
             last_dirty: 0,
             first_dirty: 0,
-            cells: range(0, width).map(|_col| {
+            cells: (0..width).map(|_col| {
                 CanvasCell{
                     dirty: false,
                     glyph: ' ',
@@ -194,7 +194,7 @@ impl<'a, 'b> Canvas<'a, 'b> {
         let mut is_bold = false;
         let mut fg = 0;
 
-        for row_i in range(0, self.height) {
+        for row_i in 0..self.height {
             let row = &mut self.rows[row_i];
             if ! row.is_dirty {
                 continue;
@@ -203,7 +203,7 @@ impl<'a, 'b> Canvas<'a, 'b> {
             // TODO the terminal could track its cursor position and optimize this move away
             self.terminfo.reposition(self.start_col + row.first_dirty, self.start_row + row_i);
             // TODO with this level of optimization, imo, there should also be a method for forcibly redrawing the entire screen from (presumed) scratch
-            for col in range(row.first_dirty, row.last_dirty + 1) {
+            for col in row.first_dirty..row.last_dirty + 1 {
                 let cell = &mut row.cells[col];
 
                 // Deal with formatting
@@ -234,7 +234,7 @@ impl<'a, 'b> Canvas<'a, 'b> {
                     self.terminfo.write_cap1("setaf", actual_fg);
                 }
 
-                self.terminfo.write(cell.glyph.to_string().as_slice());
+                self.terminfo.write(&cell.glyph.to_string());
                 cell.dirty = false;
             }
 
@@ -264,8 +264,9 @@ impl<'a, 'b> Canvas<'a, 'b> {
         // etc.  it's hilariously sad.
         // TODO should have a timeout after Esc...  et al.?
         // TODO this could probably stand to be broken out a bit
-        let byte = match self.terminfo.in_file.borrow_mut().read_byte() {
-            Ok(byte) => byte,
+        let mut bytes = [0];
+        let byte = match self.terminfo.in_file.borrow_mut().read_exact(&mut bytes) {
+            Ok(()) => bytes[0],
             // TODO how can this actually happen?
             Err(err) => panic!("couldn't read a byte?!  {:?}", err),
         };
@@ -324,7 +325,7 @@ impl<'a, 'b> Canvas<'a, 'b> {
                 panic!("unexpected decoded string length!");
             }
 
-            return Key::Character(decoded.char_at(0));
+            return Key::Character(decoded.chars().next().unwrap());
         }
 
         // XXX urwid has if byte > 127 && byte < 256...  but that's covered
@@ -346,8 +347,9 @@ impl<'a, 'b> Canvas<'a, 'b> {
             if bytes.len() > 8 {
                 break;
             }
-            match self.terminfo.in_file.borrow_mut().read_byte() {
-                Ok(byte) => bytes.push(byte),
+            let mut bytes_buffer = [0];
+            match self.terminfo.in_file.borrow_mut().read_exact(&mut bytes_buffer) {
+                Ok(()) => bytes.push(bytes_buffer[0]),
                 Err(_) => break,
             }
         }

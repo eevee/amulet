@@ -3,12 +3,12 @@ use ll::Style;
 use ll::TerminalInfo;
 use termios;
 
-pub struct Terminal<'a> {
-    info: TerminalInfo<'a>,
+pub struct Terminal {
+    info: TerminalInfo,
 }
 
-impl<'a> Terminal<'a> {
-    pub fn new() -> Terminal<'a> {
+impl<'a> Terminal {
+    pub fn new() -> Terminal {
         let info = TerminalInfo::new();
 
         return Terminal{

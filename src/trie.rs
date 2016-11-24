@@ -10,10 +10,10 @@
 use std::cmp::Eq;
 use std::hash::Hash;
 use std::collections::HashMap;
-use std::collections::hash_map::{Hasher,Entry};
+use std::collections::hash_map::Entry;
+use std::fmt::Debug;
 use std::vec;
-use std::io;
-use std::fmt::Show;
+use std::io::{self, Write};
 
 pub struct Trie<K, V> {
     value: Option<V>,
@@ -21,11 +21,11 @@ pub struct Trie<K, V> {
 }
 
 /** Construct an empty trie. */
-pub fn Trie<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static>() -> Trie<T, U> {
+pub fn Trie<T: Eq + Hash + Clone + Debug + 'static, U: Clone + Debug + 'static>() -> Trie<T, U> {
     return Trie::new();
 }
 
-impl<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static> Trie<T, U> {
+impl<T: Eq + Hash + Clone + Debug + 'static, U: Clone + Debug + 'static> Trie<T, U> {
     pub fn new() -> Trie<T, U> {
         return Trie{ value: None::<U>, children: HashMap::new() };
     }
@@ -50,7 +50,7 @@ impl<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static> T
         }
 
         let mut node = self;
-        for k in range(0, keys.len()) {
+        for k in 0..keys.len() {
             match node.children.get(&keys[k]) {
                 Some(child_node) => node = child_node,
                 None => return None,
@@ -62,10 +62,10 @@ impl<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static> T
 
     pub fn find_prefix(&self, keys: &[T]) -> (Option<U>, Vec<T>) {
         let mut node = self;
-        for k in range(0, keys.len()) {
+        for k in 0..keys.len() {
             match node.children.get(&keys[k]) {
                 Some(child_node) => node = child_node,
-                None => return (node.value.clone(), keys.slice(k, keys.len()).to_vec()),
+                None => return (node.value.clone(), keys[k..].to_vec()),
             }
         }
 
@@ -77,7 +77,7 @@ impl<T: Eq + Hash<Hasher> + Clone + Show + 'static, U: Clone + Show + 'static> T
     }
     fn _print_all_impl(&self, prefix: &mut Vec<T>) {
         for value in self.value.iter() {
-            io::stderr().write_line(format!("{:?} => {:?}", prefix, value).as_slice());
+            writeln!(io::stderr(), "{:?} => {:?}", prefix, value).unwrap();
         }
 
         for (key, node) in self.children.iter() {
